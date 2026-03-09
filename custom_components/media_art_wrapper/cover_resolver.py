@@ -48,6 +48,10 @@ async def async_resolve_cover(*, session, query: TrackQuery, providers: Iterable
               remix-specific cover if one exists.
     Stage 2 – cleaned title (e.g. "Song"): strips remix/edit annotations and
               retries so the original release cover is used as a fallback.
+    Stage 3 – swapped artist/title: some radio stations (e.g. ÖRR) transmit
+              the artist in the title field and vice versa. If all previous
+              stages fail and both fields are set, retry with artist and title
+              exchanged.
 
     Returns the first successful result or None (callers should show the
     default fallback logo in that case).
@@ -56,17 +60,35 @@ async def async_resolve_cover(*, session, query: TrackQuery, providers: Iterable
     if not provider_list:
         provider_list = [PROVIDER_ITUNES]
 
-    # Build the ordered list of title variants to try.
-    # original_title is set only when it differs from the cleaned title.
-    if query.original_title and query.original_title != query.title:
-        title_stages: list[str | None] = [query.original_title, query.title]
-    else:
-        title_stages = [query.title]
+    def _title_stages(q: TrackQuery) -> list[str | None]:
+        """Return the ordered list of title variants to try for a query."""
+        if q.original_title and q.original_title != q.title:
+            return [q.original_title, q.title]
+        return [q.title]
 
-    for stage_title in title_stages:
-        stage_query = replace(query, title=stage_title, original_title=None) if stage_title != query.title else query
-        _LOGGER.debug("Cover search stage title=%r", stage_title)
-        resolved = await _try_providers(session=session, query=stage_query, provider_list=provider_list)
+    async def _try_stages(q: TrackQuery) -> ResolvedCover | None:
+        for stage_title in _title_stages(q):
+            stage_query = replace(q, title=stage_title, original_title=None) if stage_title != q.title else q
+            _LOGGER.debug("Cover search stage title=%r artist=%r", stage_title, q.artist)
+            resolved = await _try_providers(session=session, query=stage_query, provider_list=provider_list)
+            if resolved:
+                return resolved
+        return None
+
+    # --- Normal order: artist / title as received ---
+    resolved = await _try_stages(query)
+    if resolved:
+        return resolved
+
+    # --- Swapped order: title field → artist, artist field → title ---
+    if query.artist and query.title:
+        _LOGGER.debug(
+            "No cover found with original order – retrying with swapped artist/title "
+            "(artist=%r title=%r → artist=%r title=%r)",
+            query.artist, query.title, query.title, query.artist,
+        )
+        swapped_query = replace(query, artist=query.title, title=query.artist, original_title=None)
+        resolved = await _try_stages(swapped_query)
         if resolved:
             return resolved
 

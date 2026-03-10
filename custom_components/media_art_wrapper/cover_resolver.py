@@ -4,10 +4,11 @@ import logging
 from dataclasses import replace
 from typing import Iterable
 
-from .const import PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ
+from .const import PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ, PROVIDER_TV
 from .itunes import async_itunes_resolve
 from .models import ResolvedCover, TrackQuery
 from .musicbrainz import async_musicbrainz_resolve
+from .tv import async_tv_resolve
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +30,12 @@ async def _try_providers(
 
             if provider == PROVIDER_MUSICBRAINZ:
                 resolved = await async_musicbrainz_resolve(session=session, query=query)
+                if resolved:
+                    return resolved
+                continue
+
+            if provider == PROVIDER_TV:
+                resolved = await async_tv_resolve(session=session, query=query)
                 if resolved:
                     return resolved
                 continue

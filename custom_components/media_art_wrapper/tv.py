@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any
 
+from .epg import async_get_current_program
 from .models import ResolvedCover, TrackQuery
 
 _LOGGER = logging.getLogger(__name__)
@@ -363,10 +364,15 @@ async def async_tv_resolve(*, session, query: TrackQuery) -> ResolvedCover | Non
     """Resolve artwork for TV content.
 
     Search order:
+      0. EPG (TVMaze DE schedule) – if the title looks like a channel name,
+         look up what's currently airing and use that program's artwork.
+         If the EPG returns a show title but no image, that title is fed into
+         the artwork searches below instead of the raw channel name.
       1. iTunes TV (tvShow + movie entity) – matches show/movie names.
-      2. TVMaze – TV shows, freely accessible without API key.
-      3. Wikipedia thumbnail – used as a last resort for channel logos
-         (e.g. "WDR HD Wuppertal" → strip suffix → look up "WDR").
+      2. TVMaze show search – TV shows, freely accessible without API key.
+      3. Channel logo lookup:
+         3a. ÖRR HD list page (curated, Europe-wide public broadcasters).
+         3b. Generic Wikipedia article lookup as final fallback.
     """
     title = (query.title or "").strip()
     artist = (query.artist or "").strip()
@@ -378,22 +384,50 @@ async def async_tv_resolve(*, session, query: TrackQuery) -> ResolvedCover | Non
     artwork_url: str | None = None
     provider_name: str | None = None
 
-    # 1. iTunes TV ----------------------------------------------------------
-    artwork_url = await _itunes_tv(session, search_term, match_name=title or artist)
-    if artwork_url:
-        # Scale up the iTunes thumbnail to the requested size.
-        target = max(100, int(max(query.artwork_width, query.artwork_height)))
-        artwork_url = re.sub(
-            r"/(\d{2,4})x(\d{2,4})bb\.(jpg|png)$",
-            f"/{target}x{target}bb.jpg",
-            artwork_url,
-            flags=re.IGNORECASE,
-        )
-        provider_name = "tv_itunes"
+    # The "effective" search term used for iTunes/TVMaze show searches.
+    # May be replaced with the EPG program title when available.
+    effective_search = search_term
 
-    # 2. TVMaze -------------------------------------------------------------
+    # 0. EPG lookup ---------------------------------------------------------
+    # Only useful when the title contains a broadcast-technical suffix (HD/SD)
+    # or when artist is absent – both are strong indicators of a channel name.
+    stripped_title = _strip_channel_suffix(title)
+    is_channel_name = stripped_title != title or not artist
+    if is_channel_name and title:
+        epg = await async_get_current_program(session, stripped_title or title)
+        if epg:
+            if epg.get("image_url"):
+                # Use the programme image directly.
+                artwork_url = epg["image_url"]
+                provider_name = "tv_epg"
+                _LOGGER.debug(
+                    "EPG hit: channel=%r → programme=%r image=%r",
+                    title, epg.get("show_name") or epg.get("title"), artwork_url,
+                )
+            elif epg.get("show_name") or epg.get("title"):
+                # No image but we have a title – use it for artwork searches.
+                effective_search = epg.get("show_name") or epg.get("title") or search_term
+                _LOGGER.debug(
+                    "EPG title redirect: channel=%r → search=%r",
+                    title, effective_search,
+                )
+
+    # 1. iTunes TV ----------------------------------------------------------
     if not artwork_url:
-        artwork_url = await _tvmaze(session, title or search_term)
+        artwork_url = await _itunes_tv(session, effective_search, match_name=effective_search)
+        if artwork_url:
+            target = max(100, int(max(query.artwork_width, query.artwork_height)))
+            artwork_url = re.sub(
+                r"/(\d{2,4})x(\d{2,4})bb\.(jpg|png)$",
+                f"/{target}x{target}bb.jpg",
+                artwork_url,
+                flags=re.IGNORECASE,
+            )
+            provider_name = "tv_itunes"
+
+    # 2. TVMaze show search -------------------------------------------------
+    if not artwork_url:
+        artwork_url = await _tvmaze(session, effective_search)
         if artwork_url:
             provider_name = "tv_tvmaze"
 

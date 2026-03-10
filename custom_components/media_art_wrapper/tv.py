@@ -12,7 +12,16 @@ ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
 TVMAZE_SEARCH_URL = "https://api.tvmaze.com/search/shows"
 WIKIPEDIA_API_URL = "https://{lang}.wikipedia.org/w/api.php"
 
+# Wikipedia list page for European public-broadcasting HD channels.
+# Contains a curated logo for every ÖRR/public-TV channel – used as the
+# primary logo source before falling back to individual article lookups.
+_OERR_LIST_PAGE = "Liste der öffentlich-rechtlichen HD-Programme in Europa"
+
 _JSON_KW = {"content_type": None}
+
+# Module-level cache: stores the image-title list fetched from the ÖRR list
+# page so we only hit the API once per HA session.
+_oerr_image_cache: list[str] | None = None
 
 # Strips broadcast-technical and regional suffixes from channel names.
 # Examples:
@@ -196,6 +205,91 @@ async def _resolve_commons_url(session, file_title: str, thumb_width: int) -> st
     return None
 
 
+async def _fetch_oerr_images(session) -> list[str]:
+    """Return (and cache) all image titles from the ÖRR HD list page.
+
+    The list is fetched once per HA session and stored in _oerr_image_cache.
+    Every image on that page is a channel logo, so no further exclusion
+    filtering is needed when using it as a source.
+    """
+    global _oerr_image_cache
+    if _oerr_image_cache is not None:
+        return _oerr_image_cache
+
+    api_url = WIKIPEDIA_API_URL.format(lang="de")
+    params = {
+        "action": "query",
+        "titles": _OERR_LIST_PAGE,
+        "prop": "images",
+        "imlimit": "500",
+        "format": "json",
+    }
+    try:
+        async with session.get(api_url, params=params, timeout=15) as resp:
+            resp.raise_for_status()
+            payload = await resp.json(**_JSON_KW)
+    except Exception as err:
+        _LOGGER.debug("ÖRR list page fetch failed: %s", err)
+        _oerr_image_cache = []
+        return []
+
+    pages = payload.get("query", {}).get("pages", {}) if isinstance(payload, dict) else {}
+    images: list[str] = []
+    for page in pages.values():
+        if not isinstance(page, dict):
+            continue
+        for img in page.get("images") or []:
+            t = img.get("title")
+            if isinstance(t, str) and t:
+                images.append(t)
+
+    _oerr_image_cache = images
+    _LOGGER.debug("ÖRR list page: cached %d image titles", len(images))
+    return images
+
+
+async def _oerr_list_logo(session, channel_name: str, thumb_width: int) -> str | None:
+    """Search the ÖRR HD list page for a logo matching *channel_name*.
+
+    Because every image on that page is already a channel logo, we skip the
+    exclusion list and only need a positive token match. The stripped channel
+    name (e.g. 'WDR' from 'WDR HD Wuppertal') is matched against image
+    filenames; the highest-scoring image is resolved via the Commons API.
+    """
+    images = await _fetch_oerr_images(session)
+    if not images:
+        return None
+
+    channel_tokens = _clean(channel_name).split()
+    best_score = 0
+    best_file: str | None = None
+
+    for img_title in images:
+        fn = img_title.lower()
+        fn = re.sub(r"^(file|datei):", "", fn).strip()
+
+        score = 0
+        # Token match: every channel token found in filename adds points.
+        matched = sum(1 for tok in channel_tokens if len(tok) >= 2 and tok in fn)
+        if matched == 0:
+            continue
+        score += matched * 2
+        if any(boost in fn for boost in _LOGO_BOOST):
+            score += 3
+        if fn.endswith(".svg"):
+            score += 1
+
+        if score > best_score:
+            best_score = score
+            best_file = img_title
+
+    if not best_file:
+        return None
+
+    _LOGGER.debug("ÖRR list: matched %r (score=%d) for channel %r", best_file, best_score, channel_name)
+    return await _resolve_commons_url(session, best_file, thumb_width)
+
+
 async def _wikipedia_logo(session, title: str, thumb_width: int = 600) -> str | None:
     """Find the best logo image for a TV channel via Wikipedia.
 
@@ -303,21 +397,26 @@ async def async_tv_resolve(*, session, query: TrackQuery) -> ResolvedCover | Non
         if artwork_url:
             provider_name = "tv_tvmaze"
 
-    # 3. Wikipedia channel logo --------------------------------------------
+    # 3. Channel logo lookup -----------------------------------------------
     if not artwork_url and title:
-        # Try progressively shorter/cleaned variants of the channel name.
-        candidates: list[str] = []
-        stripped = _strip_channel_suffix(title)
-        if stripped and stripped != title:
-            candidates.append(stripped)
-        candidates.append(title)
-
         thumb_width = max(100, int(max(query.artwork_width, query.artwork_height)))
-        for candidate in candidates:
-            artwork_url = await _wikipedia_logo(session, candidate, thumb_width=thumb_width)
+        stripped = _strip_channel_suffix(title)
+
+        # 3a. ÖRR HD list page (curated, Europe-wide public broadcasters).
+        #     Try stripped name first (e.g. "WDR"), then full title.
+        for candidate in dict.fromkeys(filter(None, [stripped, title])):
+            artwork_url = await _oerr_list_logo(session, candidate, thumb_width)
             if artwork_url:
-                provider_name = "tv_wikipedia"
+                provider_name = "tv_wikipedia_oerr"
                 break
+
+        # 3b. Generic Wikipedia article lookup as final fallback.
+        if not artwork_url:
+            for candidate in dict.fromkeys(filter(None, [stripped, title])):
+                artwork_url = await _wikipedia_logo(session, candidate, thumb_width=thumb_width)
+                if artwork_url:
+                    provider_name = "tv_wikipedia"
+                    break
 
     if not artwork_url or not provider_name:
         return None

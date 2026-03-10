@@ -143,10 +143,19 @@ async def _tvmaze(session, term: str) -> str | None:
 
 _COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 
-# Filenames containing any of these words are very unlikely to be logos.
-_LOGO_EXCLUDE = {"karte", "map", "germany", "deutschland", "studio", "gebäude",
-                 "building", "headquarters", "sitz", "standort", "portrait",
-                 "foto", "photo", "bild", "picture"}
+# Filenames containing any of these words are very unlikely to be the *current* logo.
+_LOGO_EXCLUDE = {
+    # Geography / maps
+    "karte", "map", "germany", "deutschland",
+    # Buildings / locations
+    "studio", "gebäude", "building", "headquarters", "sitz", "standort",
+    # People / photography
+    "portrait", "foto", "photo", "bild", "picture",
+    # Historical / old versions – e.g. "Alte_ZDF_Logos.svg"
+    "alte", "altes", "alter", "alten", "ehemals", "ehemalig", "ehemalige",
+    "former", "historical", "history", "old", "variation", "variante",
+    "varianten", "uebersicht", "übersicht", "sammlung", "collection",
+}
 
 # Extra weight when the filename contains these words.
 _LOGO_BOOST = {"logo", "dachmarke", "wortmarke", "signet", "icon", "emblem"}

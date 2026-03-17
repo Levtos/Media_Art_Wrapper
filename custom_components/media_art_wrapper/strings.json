@@ -6,14 +6,39 @@
         "description": "Select a media player. Cover art will be resolved from media_artist + media_title.",
         "data": {
           "source_entity_id": "Media player",
-          "providers": "Cover sources",
+          "provider_1": "Priority 1 (highest)",
+          "provider_2": "Priority 2",
+          "provider_3": "Priority 3",
+          "provider_4": "Priority 4",
+          "provider_5": "Priority 5 (lowest)",
           "artwork_width": "Artwork width (px)",
           "artwork_height": "Artwork height (px)"
+        },
+        "data_description": {
+          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them."
         }
       }
     },
     "abort": {
       "already_configured": "This media player is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "provider_1": "Priority 1 (highest)",
+          "provider_2": "Priority 2",
+          "provider_3": "Priority 3",
+          "provider_4": "Priority 4",
+          "provider_5": "Priority 5 (lowest)",
+          "artwork_width": "Artwork width (px)",
+          "artwork_height": "Artwork height (px)"
+        },
+        "data_description": {
+          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them."
+        }
+      }
     }
   }
 }

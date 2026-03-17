@@ -11,11 +11,15 @@
           "provider_3": "Priority 3",
           "provider_4": "Priority 4",
           "provider_5": "Priority 5 (lowest)",
-          "artwork_width": "Artwork width (px)",
-          "artwork_height": "Artwork height (px)"
+          "artwork_preset": "Artwork size",
+          "artwork_width": "Custom width (px)",
+          "artwork_height": "Custom height (px)"
         },
         "data_description": {
-          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them."
+          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them.",
+          "artwork_preset": "Choose a common preset or select 'Custom …' to enter exact pixel dimensions below.",
+          "artwork_width": "Only used when 'Custom …' is selected above.",
+          "artwork_height": "Only used when 'Custom …' is selected above."
         }
       }
     },
@@ -32,11 +36,15 @@
           "provider_3": "Priority 3",
           "provider_4": "Priority 4",
           "provider_5": "Priority 5 (lowest)",
-          "artwork_width": "Artwork width (px)",
-          "artwork_height": "Artwork height (px)"
+          "artwork_preset": "Artwork size",
+          "artwork_width": "Custom width (px)",
+          "artwork_height": "Custom height (px)"
         },
         "data_description": {
-          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them."
+          "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them.",
+          "artwork_preset": "Choose a common preset or select 'Custom …' to enter exact pixel dimensions below.",
+          "artwork_width": "Only used when 'Custom …' is selected above.",
+          "artwork_height": "Only used when 'Custom …' is selected above."
         }
       }
     }

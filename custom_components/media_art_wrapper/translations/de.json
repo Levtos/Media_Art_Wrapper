@@ -11,11 +11,15 @@
           "provider_3": "Priorität 3",
           "provider_4": "Priorität 4",
           "provider_5": "Priorität 5 (niedrigste)",
-          "artwork_width": "Artwork-Breite (px)",
-          "artwork_height": "Artwork-Höhe (px)"
+          "artwork_preset": "Artwork-Größe",
+          "artwork_width": "Benutzerdefinierte Breite (px)",
+          "artwork_height": "Benutzerdefinierte Höhe (px)"
         },
         "data_description": {
-          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen."
+          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
+          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
+          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
         }
       }
     },
@@ -32,11 +36,15 @@
           "provider_3": "Priorität 3",
           "provider_4": "Priorität 4",
           "provider_5": "Priorität 5 (niedrigste)",
-          "artwork_width": "Artwork-Breite (px)",
-          "artwork_height": "Artwork-Höhe (px)"
+          "artwork_preset": "Artwork-Größe",
+          "artwork_width": "Benutzerdefinierte Breite (px)",
+          "artwork_height": "Benutzerdefinierte Höhe (px)"
         },
         "data_description": {
-          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen."
+          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
+          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
+          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
         }
       }
     }

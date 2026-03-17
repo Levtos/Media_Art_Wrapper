@@ -5,10 +5,11 @@ from dataclasses import replace
 from typing import Iterable
 
 from .battlenet import async_battlenet_resolve
-from .const import PROVIDER_BATTLENET, PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ, PROVIDER_TV
+from .const import PROVIDER_BATTLENET, PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ, PROVIDER_STEAM, PROVIDER_TV
 from .itunes import async_itunes_resolve
 from .models import ResolvedCover, TrackQuery
 from .musicbrainz import async_musicbrainz_resolve
+from .steam import async_steam_resolve
 from .tv import async_tv_resolve
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,6 +44,12 @@ async def _try_providers(
 
             if provider == PROVIDER_BATTLENET:
                 resolved = await async_battlenet_resolve(session=session, query=query)
+                if resolved:
+                    return resolved
+                continue
+
+            if provider == PROVIDER_STEAM:
+                resolved = await async_steam_resolve(session=session, query=query)
                 if resolved:
                     return resolved
                 continue

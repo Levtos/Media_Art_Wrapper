@@ -22,6 +22,7 @@ from .const import (
     PROVIDER_BATTLENET,
     PROVIDER_ITUNES,
     PROVIDER_MUSICBRAINZ,
+    PROVIDER_STEAM,
     PROVIDER_TV,
 )
 
@@ -30,6 +31,7 @@ PROVIDER_OPTIONS = [
     {"value": PROVIDER_MUSICBRAINZ, "label": "MusicBrainz + Cover Art Archive"},
     {"value": PROVIDER_TV, "label": "TV (iTunes TV + TVMaze + Wikipedia-Senderlogos)"},
     {"value": PROVIDER_BATTLENET, "label": "Battle.net (Blizzard Games: Overwatch, WoW, Hearthstone, …)"},
+    {"value": PROVIDER_STEAM, "label": "Steam (alle Steam-Spiele, z. B. Civilization VII)"},
 ]
 
 

@@ -6,14 +6,47 @@
         "description": "Wähle einen Media Player aus. Cover Art wird anhand von media_artist + media_title ermittelt.",
         "data": {
           "source_entity_id": "Media Player",
-          "providers": "Cover-Quellen",
-          "artwork_width": "Artwork-Breite (px)",
-          "artwork_height": "Artwork-Höhe (px)"
+          "provider_1": "Priorität 1 (höchste)",
+          "provider_2": "Priorität 2",
+          "provider_3": "Priorität 3",
+          "provider_4": "Priorität 4",
+          "provider_5": "Priorität 5 (niedrigste)",
+          "artwork_preset": "Artwork-Größe",
+          "artwork_width": "Benutzerdefinierte Breite (px)",
+          "artwork_height": "Benutzerdefinierte Höhe (px)"
+        },
+        "data_description": {
+          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
+          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
+          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
         }
       }
     },
     "abort": {
       "already_configured": "Dieser Media Player ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "provider_1": "Priorität 1 (höchste)",
+          "provider_2": "Priorität 2",
+          "provider_3": "Priorität 3",
+          "provider_4": "Priorität 4",
+          "provider_5": "Priorität 5 (niedrigste)",
+          "artwork_preset": "Artwork-Größe",
+          "artwork_width": "Benutzerdefinierte Breite (px)",
+          "artwork_height": "Benutzerdefinierte Höhe (px)"
+        },
+        "data_description": {
+          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
+          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
+          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
+        }
+      }
     }
   }
 }

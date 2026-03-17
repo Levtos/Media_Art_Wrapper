@@ -286,6 +286,45 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             return data
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entries to the current schema version.
+
+    Each block handles exactly one version step so the chain is fully additive:
+    future migrations just append another ``if current_version < N`` block.
+
+    Version history
+    ---------------
+    1  – initial release; artwork stored as a single ``artwork_size`` value.
+    2  – ``artwork_size`` replaced by separate ``artwork_width`` / ``artwork_height``.
+    """
+    current_version: int = entry.version
+    _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)
+
+    new_data = dict(entry.data)
+    new_options = dict(entry.options)
+
+    if current_version < 2:
+        # Split the legacy unified ``artwork_size`` field into the two separate
+        # dimension fields.  Applies to both ``data`` and ``options`` so that
+        # entries whose options were written by the old flow are also cleaned up.
+        for store in (new_data, new_options):
+            if CONF_ARTWORK_SIZE in store:
+                size = int(store.pop(CONF_ARTWORK_SIZE))
+                store.setdefault(CONF_ARTWORK_WIDTH, size)
+                store.setdefault(CONF_ARTWORK_HEIGHT, size)
+        current_version = 2
+        _LOGGER.info(
+            "Migrated config entry %s: v1 → v2 (artwork_size → artwork_width/artwork_height)",
+            entry.entry_id,
+        )
+
+    hass.config_entries.async_update_entry(
+        entry, data=new_data, options=new_options, version=current_version
+    )
+    _LOGGER.debug("Config entry %s successfully migrated to version %s", entry.entry_id, current_version)
+    return True
+
+
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 

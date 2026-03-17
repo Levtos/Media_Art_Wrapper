@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_ARTWORK_WIDTH,
     DEFAULT_PROVIDERS,
     DOMAIN,
+    PROVIDER_BATTLENET,
     PROVIDER_ITUNES,
     PROVIDER_MUSICBRAINZ,
     PROVIDER_TV,
@@ -28,6 +29,7 @@ PROVIDER_OPTIONS = [
     {"value": PROVIDER_ITUNES, "label": "iTunes (Apple Search API)"},
     {"value": PROVIDER_MUSICBRAINZ, "label": "MusicBrainz + Cover Art Archive"},
     {"value": PROVIDER_TV, "label": "TV (iTunes TV + TVMaze + Wikipedia-Senderlogos)"},
+    {"value": PROVIDER_BATTLENET, "label": "Battle.net (Blizzard Games: Overwatch, WoW, Hearthstone, …)"},
 ]
 
 

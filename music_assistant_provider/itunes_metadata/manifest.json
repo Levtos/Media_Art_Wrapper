@@ -1,0 +1,14 @@
+{
+  "type": "metadata",
+  "domain": "itunes_metadata",
+  "stage": "beta",
+  "name": "iTunes Metadata",
+  "description": "Fetch cover art from the Apple iTunes Search API. Useful especially for radio streams and ICY metadata where cover art is absent. No API key required.",
+  "codeowners": ["@levtos"],
+  "requirements": [],
+  "documentation": "https://github.com/levtos/media_art_wrapper",
+  "multi_instance": false,
+  "builtin": false,
+  "allow_disable": true,
+  "icon": "mdi-music-circle"
+}

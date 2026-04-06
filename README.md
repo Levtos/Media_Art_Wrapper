@@ -1,64 +1,90 @@
-# Media Art Wrapper (Home Assistant Custom Integration)
+# Media Art Wrapper
 
-![Media Art Wrapper](custom_components/media_art_wrapper/icons/logo.png)
+A Home Assistant custom integration that fetches cover art for any `media_player` entity and exposes it as **Image**, **Camera**, **Media Player wrapper**, and **Sensor** entities.
 
-This integration provides cover artwork based on `media_artist` + `media_title` from a selected `media_player`, exposed as **Image**, **Camera**, and an optional **Media Player wrapper** entity.
+Designed for use-cases where the source player provides no artwork — most notably internet radio streams, but equally useful for games and TV.
 
-Current providers: **iTunes Search API** + **MusicBrainz/Cover Art Archive** (no login required).
+## Providers
+
+| Provider | Use-case | API key |
+|---|---|---|
+| **iTunes** (Apple Search API) | Music — tracks, singles, albums | None |
+| **MusicBrainz + Cover Art Archive** | Music — open-source fallback | None |
+| **TV** | TV channel logos, movies & series (iTunes TV, TVMaze, Wikipedia) | None |
+| **Battle.net** | Blizzard games: Overwatch, Hearthstone, WoW, Diablo, StarCraft, … | None |
+| **Steam** | All Steam games — portrait library artwork (up to 1200 × 1800 px) | None |
+
+Up to **5 providers** can be enabled in priority order. The integration tries each in turn and uses the first successful result.
+
+## Entities
+
+For each configured source player the following entities are created:
+
+| Entity | Type | Description |
+|---|---|---|
+| `image.<name>_cover` | Image | Cover art, updates on every track change |
+| `camera.<name>_cover` | Camera | Same image via camera platform (for Picture Glance cards) |
+| `media_player.<name>_cover` | Media Player | Full proxy of the source player with cover art overridden |
+| `sensor.<name>_cover_status` | Sensor | `ready` / `not_found` / `idle` + diagnostics attributes |
 
 ## Features
 
-- Image entity (for example: `image.media_art_wrapper_homepods_cover`)
-- Track change detection: refreshes only when `(artist,title,album)` changes
-- Frontend-friendly caching: UI refetches when `image_last_updated` changes
-- Brand icon/logo assets (PNG) in `icons/` for Home Assistant 2026.3.0+ Brands Proxy API
-- Additional Camera entity for Picture Cards (`camera.*_cover_camera`)
-- Additional universal-style Media Player wrapper entity with inherited controls + generated cover image (`media_player.*_cover`)
-- More robust metadata cleanup (Remix/Edit/Timecode) and query order `Artist Title` → `Title Artist`
-- Keeps last successful cover during temporary API/metadata failures
-- Visible no-cover SVG fallback (`no_cover.svg`) instead of a transparent pixel
-- Integration domain: `media_art_wrapper` — compatible with HA Brands Proxy from version 2026.3.0+
+- **Provider priority slots** — choose up to 5 providers in order; first match wins
+- **Staged title fallback** — tries original title (e.g. `Song (Remix)`) then stripped title (`Song`), then swapped artist/title order (catches stations that transmit them reversed)
+- **Artwork size presets** — square (300 – 1000 px) and portrait formats (600 × 900, 1200 × 1800) for game artwork
+- **Persistent last cover** — keeps the previous cover visible while the next one loads
+- **No-cover fallback** — shows a neutral SVG instead of a broken image
+- **Track-keyed caching** — only fetches when `(artist, title, album)` actually changes
+- **Config entry options flow** — change providers and artwork size without re-adding the integration
 
 ## Installation
 
-### Option A: HACS (Custom Repository)
-1. Create a GitHub repository and copy these files as-is
-2. In Home Assistant:
-   - HACS → (⋮) → *Custom repositories*
-   - Enter repository URL
-   - Type: **Integration**
-   - Install
+### HACS (recommended)
+
+1. HACS → ⋮ → *Custom repositories* → add this repository URL → type **Integration**
+2. Install *Media Art Wrapper*
 3. Restart Home Assistant
 
-### Option B: Manual
-1. Copy folder `custom_components/media_art_wrapper/` to `<config>/custom_components/media_art_wrapper/`
-2. Restart Home Assistant
+### Manual
+
+Copy `custom_components/media_art_wrapper/` to `<config>/custom_components/media_art_wrapper/` and restart.
 
 ## Setup
-- Settings → Devices & Services → Add Integration → **Media Art Wrapper**
-- Select your `media_player` (for example HomePods)
 
-## Lovelace usage
-- Use a Picture card with entity:
-  - `type: picture-entity`
-  - `entity: image.media_art_wrapper_homepods_cover`
+**Settings → Devices & Services → Add Integration → Media Art Wrapper**
 
-## Notes / limitations
-- Radio streams with very generic metadata can still produce wrong matches.
-- More providers can be added over time.
+1. Select the source `media_player` entity
+2. Choose providers and their priority order
+3. Choose artwork dimensions (or use a preset)
 
+## Lovelace
+
+```yaml
+type: picture-entity
+entity: image.my_player_cover
+```
+
+Or for the full media player card with controls:
+
+```yaml
+type: media-control
+entity: media_player.my_player_cover
+```
 
 ## Troubleshooting
-- If you see startup errors related to `ImageEntity.__init__`/`Camera.__init__`, update to the latest release and fully restart Home Assistant.
-- For debugging, watch these logs first:
-  - `custom_components.media_art_wrapper`
-  - `homeassistant.components.image`
-  - `homeassistant.components.camera`
-- Typical generated entities (based on selected source `media_player.homepods`):
-  - `image.cover_homepods`
-  - `camera.cover_homepods`
-  - `media_player.homepods_cover`
 
-## Development
-- Domain: `media_art_wrapper`
-- Platforms: `image`, `camera`, `media_player`
+Enable debug logging:
+
+```yaml
+logger:
+  logs:
+    custom_components.media_art_wrapper: debug
+```
+
+The sensor entity (`sensor.*_cover_status`) exposes `provider`, `artwork_url`, `track_key`, and `last_error` as attributes — useful for diagnosing why a cover was not found.
+
+## Known limitations
+
+- Radio streams with very generic or misspelled metadata can still produce wrong matches.
+- The TV provider works best for German-speaking public broadcasting channels; other regions may see reduced match rates.
+- Battle.net artwork depends on Blizzard's website structure and may break when they redesign their pages.

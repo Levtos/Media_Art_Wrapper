@@ -163,6 +163,23 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
             return f"{data.track_key}:{data.last_updated.isoformat()}"
         return data.track_key
 
+    @property
+    def media_image_remotely_accessible(self) -> bool:
+        """Return True when artwork_url is a public CDN URL (no HA proxy needed).
+
+        Exposing a direct URL here causes HA to write it as ``entity_picture``
+        in the entity state, which allows external consumers such as Music
+        Assistant to pick up the cover art without an additional HA API call.
+        """
+        data: CoverData | None = self.coordinator.data
+        return bool(data and data.artwork_url)
+
+    @property
+    def media_image_url(self) -> str | None:
+        """Direct public cover art URL, written into ``entity_picture`` by HA."""
+        data: CoverData | None = self.coordinator.data
+        return data.artwork_url if (data and data.artwork_url) else None
+
     async def async_get_media_image(self):
         data: CoverData | None = self.coordinator.data
         if not data or not data.image:

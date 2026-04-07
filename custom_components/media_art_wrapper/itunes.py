@@ -130,7 +130,17 @@ async def async_itunes_resolve(*, session, query: TrackQuery) -> ResolvedCover |
             best_score = score
             best = item
 
-    minimum_score = 10 if query.title else 4
+    # When both artist and title are known, require a stronger match so that
+    # a correct title with a completely wrong artist cannot slip through.
+    # A title-only exact match scores 16 − 6 (artist penalty) = 10, which
+    # is enough to pass the old threshold of 10 — raising to 12 closes that
+    # gap without affecting genuine matches (those score 21+).
+    if query.artist and query.title:
+        minimum_score = 12
+    elif query.title:
+        minimum_score = 10
+    else:
+        minimum_score = 4
     if not best or best_score < minimum_score:
         return None
 

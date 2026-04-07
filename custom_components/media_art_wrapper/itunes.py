@@ -18,7 +18,27 @@ _RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _RE_SPACES = re.compile(r"\s+")
 
 
+def _search_term(s: str) -> str:
+    """Prepare a string as an iTunes API search term.
+
+    Only strips feat./remix annotations and collapses whitespace.
+    Non-ASCII characters (Ø, ü, é, …) are intentionally preserved so
+    that artist names like 'BRØMANCE' reach the API intact.
+    """
+    s = s.strip()
+    s = _RE_PAREN_FEAT.sub("", s)
+    s = _RE_BRACKET_FEAT.sub("", s)
+    s = _RE_SPACES.sub(" ", s)
+    return s.strip()
+
+
 def _clean(s: str) -> str:
+    """Aggressively normalise a string for fuzzy score comparison only.
+
+    Strips all non-alphanumeric characters so that special chars, punctuation
+    and different encodings do not prevent a match in _score_result().
+    Do NOT use this for building API search terms – use _search_term() instead.
+    """
     s = s.strip().lower()
     s = _RE_PAREN_FEAT.sub("", s)
     s = _RE_BRACKET_FEAT.sub("", s)
@@ -97,14 +117,14 @@ async def async_itunes_resolve(*, session, query: TrackQuery) -> ResolvedCover |
         return None
 
     terms: list[str] = []
-    term1 = " ".join([p for p in [_clean(query.artist or ""), _clean(query.title or "")] if p])
+    term1 = " ".join([p for p in [_search_term(query.artist or ""), _search_term(query.title or "")] if p])
     if term1:
         terms.append(term1)
-    term2 = " ".join([p for p in [_clean(query.title or ""), _clean(query.artist or "")] if p])
+    term2 = " ".join([p for p in [_search_term(query.title or ""), _search_term(query.artist or "")] if p])
     if term2 and term2 != term1:
         terms.append(term2)
     if query.title:
-        terms.append(f"{_clean(query.artist or '')} {_clean(query.title or '')} single".strip())
+        terms.append(f"{_search_term(query.artist or '')} {_search_term(query.title or '')} single".strip())
 
     try:
         results: list[dict[str, Any]] = []

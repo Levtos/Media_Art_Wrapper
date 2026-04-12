@@ -12,8 +12,12 @@ _JSON_KW = {"content_type": None}
 _RE_ARTWORK_SIZE = re.compile(r"/(\d{2,4})x(\d{2,4})bb\.(jpg|png)$", re.IGNORECASE)
 
 # Pre-compiled patterns for _clean() – avoids recompilation on every call.
-_RE_PAREN_FEAT = re.compile(r"\((feat\.|featuring|remix|edit|mix).*?\)", re.IGNORECASE)
-_RE_BRACKET_FEAT = re.compile(r"\[(feat\.|featuring|remix|edit|mix).*?\]", re.IGNORECASE)
+_RE_PAREN_FEAT = re.compile(r"\((feat\.|featuring|ft\.|remix|edit|mix).*?\)", re.IGNORECASE)
+_RE_BRACKET_FEAT = re.compile(r"\[(feat\.|featuring|ft\.|remix|edit|mix).*?\]", re.IGNORECASE)
+# Strips bare "feat." / "featuring" / "ft." that radio stations embed directly
+# in the artist string without surrounding brackets, e.g.
+# "Armand Van Helden feat. Mark Knight & D.Ramirez" → "Armand Van Helden"
+_RE_BARE_FEAT = re.compile(r"\s+(?:feat\.|featuring|ft\.)\s+.*$", re.IGNORECASE)
 _RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _RE_SPACES = re.compile(r"\s+")
 
@@ -21,11 +25,12 @@ _RE_SPACES = re.compile(r"\s+")
 def _search_term(s: str) -> str:
     """Prepare a string as an iTunes API search term.
 
-    Only strips feat./remix annotations and collapses whitespace.
-    Non-ASCII characters (Ø, ü, é, …) are intentionally preserved so
-    that artist names like 'BRØMANCE' reach the API intact.
+    Strips feat./remix annotations (bracketed and bare) and collapses
+    whitespace. Non-ASCII characters (Ø, ü, é, …) are intentionally
+    preserved so that artist names like 'BRØMANCE' reach the API intact.
     """
     s = s.strip()
+    s = _RE_BARE_FEAT.sub("", s)
     s = _RE_PAREN_FEAT.sub("", s)
     s = _RE_BRACKET_FEAT.sub("", s)
     s = _RE_SPACES.sub(" ", s)
@@ -40,6 +45,7 @@ def _clean(s: str) -> str:
     Do NOT use this for building API search terms – use _search_term() instead.
     """
     s = s.strip().lower()
+    s = _RE_BARE_FEAT.sub("", s)
     s = _RE_PAREN_FEAT.sub("", s)
     s = _RE_BRACKET_FEAT.sub("", s)
     s = _RE_NON_ALNUM.sub(" ", s)

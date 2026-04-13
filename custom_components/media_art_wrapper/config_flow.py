@@ -9,9 +9,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import selector
 
 from .const import (
+    COMBINED_NUM_SOURCE_SLOTS,
     CONF_ARTWORK_HEIGHT,
     CONF_ARTWORK_SIZE,
     CONF_ARTWORK_WIDTH,
+    CONF_COMBINED_AUDIO_SOURCES,
+    CONF_COMBINED_NAME,
+    CONF_COMBINED_SOURCES,
+    CONF_CREATE_COMBINED,
     CONF_PROVIDERS,
     CONF_SOURCE_ENTITY_ID,
     DEFAULT_ARTWORK_HEIGHT,
@@ -99,6 +104,45 @@ def _detect_preset(width: int, height: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Combined Player helpers
+# ---------------------------------------------------------------------------
+
+# Internal form-field names for the 8 combined source priority slots (UI only)
+_COMBINED_SLOT_KEYS = [f"combined_source_{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
+
+_COMBINED_ENTITY_SELECTOR = selector.EntitySelector(
+    selector.EntitySelectorConfig(domain="media_player", multiple=False)
+)
+
+_COMBINED_AUDIO_SELECTOR = selector.EntitySelector(
+    selector.EntitySelectorConfig(domain="media_player", multiple=True)
+)
+
+
+def _combined_slots_to_sources(form_data: dict[str, Any]) -> list[str]:
+    """Convert numbered slot form values to an ordered sources list.
+
+    Duplicates and absent/empty slots are silently dropped.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for key in _COMBINED_SLOT_KEYS:
+        val = form_data.get(key)
+        if val and isinstance(val, str) and val not in seen:
+            seen.add(val)
+            result.append(val)
+    return result
+
+
+def _combined_sources_to_slots(sources: list[str]) -> dict[str, str]:
+    """Return a mapping of slot-key → entity_id for filled slots only."""
+    return {
+        _COMBINED_SLOT_KEYS[i]: sources[i]
+        for i in range(min(len(sources), COMBINED_NUM_SOURCE_SLOTS))
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -142,6 +186,10 @@ def _slot_schema(
     artwork_height: int,
     *,
     include_source: bool,
+    create_combined: bool = False,
+    combined_name: str = "",
+    combined_sources: list[str] | None = None,
+    combined_audio_sources: list[str] | None = None,
 ) -> vol.Schema:
     fields: dict[Any, Any] = {}
 
@@ -163,6 +211,28 @@ def _slot_schema(
     )
     fields[vol.Optional(CONF_ARTWORK_HEIGHT, default=artwork_height)] = vol.All(
         vol.Coerce(int), vol.Range(min=1)
+    )
+
+    # ---- Combined Player section ----
+    fields[vol.Optional(CONF_CREATE_COMBINED, default=create_combined)] = (
+        selector.BooleanSelector()
+    )
+    fields[vol.Optional(CONF_COMBINED_NAME, default=combined_name)] = (
+        selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT))
+    )
+
+    # 8 priority slots for combined sources
+    slot_defaults = _combined_sources_to_slots(combined_sources or [])
+    for key in _COMBINED_SLOT_KEYS:
+        existing = slot_defaults.get(key)
+        if existing:
+            fields[vol.Optional(key, default=existing)] = _COMBINED_ENTITY_SELECTOR
+        else:
+            fields[vol.Optional(key)] = _COMBINED_ENTITY_SELECTOR
+
+    # Multi-select audio sources
+    fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=combined_audio_sources or [])] = (
+        _COMBINED_AUDIO_SELECTOR
     )
 
     return vol.Schema(fields)
@@ -190,16 +260,26 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(source_entity_id)
             self._abort_if_unique_id_configured()
 
-            title = await _friendly_name(self.hass, source_entity_id)
-            artwork_width, artwork_height = _resolve_dimensions(user_input)
+            create_combined = bool(user_input.get(CONF_CREATE_COMBINED, False))
+            combined_name = str(user_input.get(CONF_COMBINED_NAME, "")).strip()
+            if create_combined and not combined_name:
+                errors[CONF_COMBINED_NAME] = "combined_name_required"
 
-            data = {
-                CONF_SOURCE_ENTITY_ID: source_entity_id,
-                CONF_PROVIDERS: _slots_to_providers(user_input),
-                CONF_ARTWORK_WIDTH: artwork_width,
-                CONF_ARTWORK_HEIGHT: artwork_height,
-            }
-            return self.async_create_entry(title=title, data=data)
+            if not errors:
+                title = await _friendly_name(self.hass, source_entity_id)
+                artwork_width, artwork_height = _resolve_dimensions(user_input)
+
+                data = {
+                    CONF_SOURCE_ENTITY_ID: source_entity_id,
+                    CONF_PROVIDERS: _slots_to_providers(user_input),
+                    CONF_ARTWORK_WIDTH: artwork_width,
+                    CONF_ARTWORK_HEIGHT: artwork_height,
+                    CONF_CREATE_COMBINED: create_combined,
+                    CONF_COMBINED_NAME: combined_name,
+                    CONF_COMBINED_SOURCES: _combined_slots_to_sources(user_input),
+                    CONF_COMBINED_AUDIO_SOURCES: list(user_input.get(CONF_COMBINED_AUDIO_SOURCES) or []),
+                }
+                return self.async_create_entry(title=title, data=data)
 
         schema = _slot_schema(
             source_entity_id=None,
@@ -221,12 +301,22 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
 
         if user_input is not None:
             artwork_width, artwork_height = _resolve_dimensions(user_input)
-            data = {
-                CONF_PROVIDERS: _slots_to_providers(user_input),
-                CONF_ARTWORK_WIDTH: artwork_width,
-                CONF_ARTWORK_HEIGHT: artwork_height,
-            }
-            return self.async_create_entry(title="", data=data)
+            create_combined = bool(user_input.get(CONF_CREATE_COMBINED, False))
+            combined_name = str(user_input.get(CONF_COMBINED_NAME, "")).strip()
+            if create_combined and not combined_name:
+                errors[CONF_COMBINED_NAME] = "combined_name_required"
+
+            if not errors:
+                data = {
+                    CONF_PROVIDERS: _slots_to_providers(user_input),
+                    CONF_ARTWORK_WIDTH: artwork_width,
+                    CONF_ARTWORK_HEIGHT: artwork_height,
+                    CONF_CREATE_COMBINED: create_combined,
+                    CONF_COMBINED_NAME: combined_name,
+                    CONF_COMBINED_SOURCES: _combined_slots_to_sources(user_input),
+                    CONF_COMBINED_AUDIO_SOURCES: list(user_input.get(CONF_COMBINED_AUDIO_SOURCES) or []),
+                }
+                return self.async_create_entry(title="", data=data)
 
         current_providers: list[str] = self.config_entry.options.get(
             CONF_PROVIDERS,
@@ -246,6 +336,22 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 self.config_entry.data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_HEIGHT),
             ),
         )
+        create_combined: bool = self.config_entry.options.get(
+            CONF_CREATE_COMBINED,
+            self.config_entry.data.get(CONF_CREATE_COMBINED, False),
+        )
+        combined_name: str = self.config_entry.options.get(
+            CONF_COMBINED_NAME,
+            self.config_entry.data.get(CONF_COMBINED_NAME, ""),
+        )
+        combined_sources: list[str] = self.config_entry.options.get(
+            CONF_COMBINED_SOURCES,
+            self.config_entry.data.get(CONF_COMBINED_SOURCES, []),
+        )
+        combined_audio_sources: list[str] = self.config_entry.options.get(
+            CONF_COMBINED_AUDIO_SOURCES,
+            self.config_entry.data.get(CONF_COMBINED_AUDIO_SOURCES, []),
+        )
 
         schema = _slot_schema(
             source_entity_id=None,
@@ -253,5 +359,9 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             artwork_width=artwork_width,
             artwork_height=artwork_height,
             include_source=False,
+            create_combined=create_combined,
+            combined_name=combined_name,
+            combined_sources=combined_sources,
+            combined_audio_sources=combined_audio_sources,
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

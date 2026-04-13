@@ -10,13 +10,51 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import CoverCoordinator, CoverData
-from .const import DOMAIN
+from .const import (
+    CONF_COMBINED_AUDIO_SOURCES,
+    CONF_COMBINED_NAME,
+    CONF_COMBINED_SOURCES,
+    CONF_CREATE_COMBINED,
+    DOMAIN,
+)
 from .helpers import FALLBACK_IMAGE, source_name
+
+# ---------------------------------------------------------------------------
+# Tier constants – shared with image.py for the combined cover image entity
+# ---------------------------------------------------------------------------
+_TIER1: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.PLAYING, MediaPlayerState.BUFFERING})
+_TIER2: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.PAUSED, MediaPlayerState.IDLE})
+_TIER3: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.ON})
+
+
+def _safe_state(raw: str) -> MediaPlayerState | None:
+    """Parse a raw state string into a MediaPlayerState, or return None on failure."""
+    try:
+        return MediaPlayerState(raw)
+    except ValueError:
+        return None
+
+
+def _get_combined_config(entry: ConfigEntry) -> tuple[bool, str, list[str], list[str]]:
+    """Return (create_combined, name, sources, audio_sources) from entry options/data."""
+    opts = entry.options
+    data = entry.data
+    create = bool(opts.get(CONF_CREATE_COMBINED, data.get(CONF_CREATE_COMBINED, False)))
+    name = str(opts.get(CONF_COMBINED_NAME, data.get(CONF_COMBINED_NAME, ""))).strip()
+    sources: list[str] = list(opts.get(CONF_COMBINED_SOURCES, data.get(CONF_COMBINED_SOURCES, [])))
+    audio: list[str] = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, data.get(CONF_COMBINED_AUDIO_SOURCES, [])))
+    return create, name, sources, audio
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
     coordinator: CoverCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([MediaCoverArtUniversalPlayer(coordinator, entry)], update_before_add=False)
+    entities: list[MediaPlayerEntity] = [MediaCoverArtUniversalPlayer(coordinator, entry)]
+
+    create_combined, combined_name, combined_sources, combined_audio = _get_combined_config(entry)
+    if create_combined and combined_name and combined_sources:
+        entities.append(CombinedMediaPlayer(hass, entry, combined_sources, combined_audio, combined_name))
+
+    async_add_entities(entities, update_before_add=False)
 
 
 class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPlayerEntity):
@@ -288,3 +326,431 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
                 )
         from homeassistant.components.media_player.errors import BrowseError
         raise BrowseError(f"Source entity {self.source_entity_id} is not available for browsing")
+
+
+# ---------------------------------------------------------------------------
+# Combined Media Player
+# ---------------------------------------------------------------------------
+
+class CombinedMediaPlayer(MediaPlayerEntity):
+    """Priority-based virtual media player aggregating multiple source entities.
+
+    Implements the full CMP specification:
+    - Tier-based active source selection (PLAYING > PAUSED/IDLE > ON)
+    - Display/control split via optional audio_sources
+    - Full attribute propagation from active display/control source
+    - All 17 service forwarding calls (blocking=True)
+    - browse_media cascade
+    - Always-available (never UNAVAILABLE, degrades to OFF)
+    - Event-driven updates via async_track_state_change_event, no polling
+    """
+
+    _attr_should_poll = False
+    _attr_has_entity_name = False
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        sources: list[str],
+        audio_sources: list[str],
+        name: str,
+    ) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._sources = list(sources)
+        self._audio_sources = list(audio_sources)
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.entry_id}_combined_player"
+        self._unsub: Any | None = None
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        all_tracked = list(dict.fromkeys(self._sources + self._audio_sources))
+        self._unsub = async_track_state_change_event(
+            self.hass, all_tracked, self._handle_state_change
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_state_change(self, event: Any) -> None:
+        self.async_write_ha_state()
+
+    # ------------------------------------------------------------------
+    # Priority resolution
+    # ------------------------------------------------------------------
+
+    def _active_state(self) -> State | None:
+        """Return the state of the highest-priority active display source."""
+        for tier in (_TIER1, _TIER2, _TIER3):
+            for sid in self._sources:
+                state = self.hass.states.get(sid)
+                if state is None:
+                    continue
+                s = _safe_state(state.state)
+                if s is not None and s in tier:
+                    return state
+        return None
+
+    def _active_entity_id(self) -> str | None:
+        """Return the entity_id of the highest-priority active display source."""
+        for tier in (_TIER1, _TIER2, _TIER3):
+            for sid in self._sources:
+                state = self.hass.states.get(sid)
+                if state is None:
+                    continue
+                s = _safe_state(state.state)
+                if s is not None and s in tier:
+                    return sid
+        return None
+
+    def _active_audio_entity_id(self) -> str | None:
+        """Return the entity_id of the highest-priority active audio source."""
+        for tier in (_TIER1, _TIER2, _TIER3):
+            for sid in self._audio_sources:
+                state = self.hass.states.get(sid)
+                if state is None:
+                    continue
+                s = _safe_state(state.state)
+                if s is not None and s in tier:
+                    return sid
+        return None
+
+    def _control_state(self) -> State | None:
+        """Return the state used for volume/shuffle/repeat (audio preferred)."""
+        audio_id = self._active_audio_entity_id()
+        if audio_id:
+            return self.hass.states.get(audio_id)
+        return self._active_state()
+
+    # ------------------------------------------------------------------
+    # Availability & state
+    # ------------------------------------------------------------------
+
+    @property
+    def available(self) -> bool:
+        return True  # Always-available pattern: degrades to OFF, never UNAVAILABLE
+
+    @property
+    def state(self) -> MediaPlayerState:
+        active = self._active_state()
+        if active is None:
+            return MediaPlayerState.OFF
+        s = _safe_state(active.state)
+        if s in _TIER1:
+            return MediaPlayerState.PLAYING
+        if s in _TIER2:
+            return MediaPlayerState.IDLE
+        if s in _TIER3:
+            return MediaPlayerState.ON
+        return MediaPlayerState.OFF
+
+    # ------------------------------------------------------------------
+    # Attribute helpers
+    # ------------------------------------------------------------------
+
+    def _from_active(self, key: str, default: Any = None) -> Any:
+        state = self._active_state()
+        return state.attributes.get(key, default) if state is not None else default
+
+    def _from_control(self, key: str, default: Any = None) -> Any:
+        state = self._control_state()
+        return state.attributes.get(key, default) if state is not None else default
+
+    # ------------------------------------------------------------------
+    # Media attributes (from display source)
+    # ------------------------------------------------------------------
+
+    @property
+    def media_title(self) -> str | None:
+        return self._from_active("media_title")
+
+    @property
+    def media_artist(self) -> str | None:
+        return self._from_active("media_artist")
+
+    @property
+    def media_album_name(self) -> str | None:
+        return self._from_active("media_album_name")
+
+    @property
+    def media_content_type(self) -> str | None:
+        return self._from_active("media_content_type")
+
+    @property
+    def media_duration(self) -> float | None:
+        return self._from_active("media_duration")
+
+    @property
+    def media_position(self) -> float | None:
+        return self._from_active("media_position")
+
+    @property
+    def media_position_updated_at(self) -> Any:
+        return self._from_active("media_position_updated_at")
+
+    @property
+    def media_series_title(self) -> str | None:
+        return self._from_active("media_series_title")
+
+    @property
+    def media_season(self) -> str | None:
+        return self._from_active("media_season")
+
+    @property
+    def media_episode(self) -> str | None:
+        return self._from_active("media_episode")
+
+    @property
+    def app_name(self) -> str | None:
+        return self._from_active("app_name")
+
+    # ------------------------------------------------------------------
+    # Control attributes (from audio source, falling back to display)
+    # ------------------------------------------------------------------
+
+    @property
+    def volume_level(self) -> float | None:
+        return self._from_control("volume_level")
+
+    @property
+    def is_volume_muted(self) -> bool | None:
+        return self._from_control("is_volume_muted")
+
+    @property
+    def source(self) -> str | None:
+        return self._from_control("source")
+
+    @property
+    def source_list(self) -> list[str] | None:
+        return self._from_control("source_list")
+
+    @property
+    def shuffle(self) -> bool | None:
+        return self._from_control("shuffle")
+
+    @property
+    def repeat(self) -> str | None:
+        return self._from_control("repeat")
+
+    @property
+    def supported_features(self) -> MediaPlayerEntityFeature:
+        control = self._control_state()
+        if control is None:
+            features = MediaPlayerEntityFeature(0)
+        else:
+            try:
+                features = MediaPlayerEntityFeature(int(control.attributes.get("supported_features", 0)))
+            except (TypeError, ValueError):
+                features = MediaPlayerEntityFeature(0)
+        # BROWSE_MEDIA: enabled if ANY configured source (display OR audio) supports it
+        for sid in self._sources + self._audio_sources:
+            state = self.hass.states.get(sid)
+            if state is None:
+                continue
+            try:
+                sf = MediaPlayerEntityFeature(int(state.attributes.get("supported_features", 0)))
+            except (TypeError, ValueError):
+                continue
+            if sf & MediaPlayerEntityFeature.BROWSE_MEDIA:
+                features |= MediaPlayerEntityFeature.BROWSE_MEDIA
+                break
+        return features
+
+    # ------------------------------------------------------------------
+    # Cover art
+    # ------------------------------------------------------------------
+
+    @property
+    def media_image_url(self) -> str | None:
+        """Propagate the active source's entity_picture (HA-relative paths included)."""
+        active_id = self._active_entity_id()
+        if active_id is None:
+            return None
+        state = self.hass.states.get(active_id)
+        if state is None:
+            return None
+        return state.attributes.get("entity_picture")
+
+    @property
+    def media_image_remotely_accessible(self) -> bool:
+        url = self.media_image_url
+        return bool(url and url.startswith("http"))
+
+    async def async_get_media_image(self) -> tuple[bytes | None, str]:
+        """Return image bytes for the active source.
+
+        Tries:
+        1. MAW coordinator for the active source (reuse cover cache directly)
+        2. source entity.async_get_media_image() delegation
+        3. FALLBACK_IMAGE
+        """
+        active_id = self._active_entity_id()
+        if active_id is not None:
+            # 1. Reuse MAW CoverCoordinator cache directly
+            for coordinator in self.hass.data.get(DOMAIN, {}).values():
+                if isinstance(coordinator, CoverCoordinator) and coordinator.source_entity_id == active_id:
+                    data = coordinator.data
+                    if data and data.image:
+                        return data.image, data.content_type or "image/jpeg"
+                    break
+            # 2. Delegate to source entity
+            entity_comp = self.hass.data.get("entity_components", {}).get(MP_DOMAIN)
+            if entity_comp is not None:
+                source_entity = entity_comp.get_entity(active_id)
+                if source_entity is not None:
+                    try:
+                        img, ct = await source_entity.async_get_media_image()
+                        if img:
+                            return img, ct or "image/jpeg"
+                    except Exception:
+                        pass
+        return FALLBACK_IMAGE, "image/png"
+
+    # ------------------------------------------------------------------
+    # Diagnostics
+    # ------------------------------------------------------------------
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs: dict[str, Any] = {
+            "active_source": self._active_entity_id(),
+            "sources": self._sources,
+        }
+        if self._audio_sources:
+            attrs["active_audio_source"] = self._active_audio_entity_id()
+            attrs["audio_sources"] = self._audio_sources
+        return attrs
+
+    # ------------------------------------------------------------------
+    # Service forwarding
+    # ------------------------------------------------------------------
+
+    async def _call_active(self, service: str, **kwargs: Any) -> None:
+        """Forward a service call to the audio source (preferred) or display source."""
+        target = self._active_audio_entity_id() or self._active_entity_id()
+        if target is None:
+            return
+        await self.hass.services.async_call(
+            "media_player",
+            service,
+            {"entity_id": target, **kwargs},
+            blocking=True,
+        )
+
+    async def async_media_play(self) -> None:
+        await self._call_active("media_play")
+
+    async def async_media_pause(self) -> None:
+        await self._call_active("media_pause")
+
+    async def async_media_stop(self) -> None:
+        await self._call_active("media_stop")
+
+    async def async_media_next_track(self) -> None:
+        await self._call_active("media_next_track")
+
+    async def async_media_previous_track(self) -> None:
+        await self._call_active("media_previous_track")
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        await self._call_active("volume_set", volume_level=volume)
+
+    async def async_volume_up(self) -> None:
+        await self._call_active("volume_up")
+
+    async def async_volume_down(self) -> None:
+        await self._call_active("volume_down")
+
+    async def async_mute_volume(self, mute: bool) -> None:
+        await self._call_active("volume_mute", is_volume_muted=mute)
+
+    async def async_media_seek(self, position: float) -> None:
+        await self._call_active("media_seek", seek_position=position)
+
+    async def async_play_media(self, media_type: str, media_id: str, **kwargs: Any) -> None:
+        await self._call_active(
+            "play_media",
+            media_content_type=media_type,
+            media_content_id=media_id,
+            **kwargs,
+        )
+
+    async def async_select_source(self, source: str) -> None:
+        await self._call_active("select_source", source=source)
+
+    async def async_set_shuffle(self, shuffle: bool) -> None:
+        await self._call_active("shuffle_set", shuffle=shuffle)
+
+    async def async_set_repeat(self, repeat: str) -> None:
+        await self._call_active("repeat_set", repeat=repeat)
+
+    async def async_turn_on(self) -> None:
+        await self._call_active("turn_on")
+
+    async def async_turn_off(self) -> None:
+        await self._call_active("turn_off")
+
+    async def async_toggle(self) -> None:
+        await self._call_active("toggle")
+
+    # ------------------------------------------------------------------
+    # Media browsing
+    # ------------------------------------------------------------------
+
+    def _browse_entity_id(self) -> str | None:
+        """Select the best delegate for async_browse_media().
+
+        Priority:
+        1. Active display source that supports BROWSE_MEDIA
+        2. Active audio source that supports BROWSE_MEDIA
+        3. Any configured source (display or audio) that supports BROWSE_MEDIA
+        """
+        def _supports_browse(sid: str) -> bool:
+            state = self.hass.states.get(sid)
+            if state is None:
+                return False
+            try:
+                sf = MediaPlayerEntityFeature(int(state.attributes.get("supported_features", 0)))
+                return bool(sf & MediaPlayerEntityFeature.BROWSE_MEDIA)
+            except (TypeError, ValueError):
+                return False
+
+        active_id = self._active_entity_id()
+        if active_id and _supports_browse(active_id):
+            return active_id
+        audio_id = self._active_audio_entity_id()
+        if audio_id and _supports_browse(audio_id):
+            return audio_id
+        for sid in self._sources + self._audio_sources:
+            if _supports_browse(sid):
+                return sid
+        return None
+
+    async def async_browse_media(
+        self,
+        media_content_type: str | None = None,
+        media_content_id: str | None = None,
+    ) -> BrowseMedia:
+        browse_id = self._browse_entity_id()
+        if browse_id is None:
+            from homeassistant.components.media_player.errors import BrowseError
+            raise BrowseError("No configured source supports media browsing")
+        entity_comp = self.hass.data.get("entity_components", {}).get(MP_DOMAIN)
+        if entity_comp is not None:
+            source_entity = entity_comp.get_entity(browse_id)
+            if source_entity is not None:
+                return await source_entity.async_browse_media(
+                    media_content_type, media_content_id
+                )
+        from homeassistant.components.media_player.errors import BrowseError
+        raise BrowseError(f"Source entity {browse_id} is not available for browsing")

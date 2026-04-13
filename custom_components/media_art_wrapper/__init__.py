@@ -32,6 +32,11 @@ from .models import TrackQuery
 
 _LOGGER = logging.getLogger(__name__)
 
+# Detects station-ident metadata: no artist AND title contains " - " which
+# radio stations use for "STATIONNAME - SLOGAN" (e.g. "WDR 2 - Für den Westen").
+# Real track titles without an artist field rarely contain " - ".
+_RE_STATION_IDENT = re.compile(r".+\s+-\s+.+")
+
 _RE_CLEAN = re.compile(
     r"""
        \s*
@@ -186,6 +191,13 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         artist = _clean_text(attrs.get("media_artist"))
         title = _clean_text(attrs.get("media_title"))
         album = _clean_text(attrs.get("media_album_name"))
+
+        # Heuristic: no artist AND title looks like "STATIONNAME - SLOGAN"
+        # (e.g. "WDR 2 - Für den Westen"). Treat as no usable track info so
+        # the last successful cover is kept instead of triggering a new search.
+        if not artist and title and _RE_STATION_IDENT.match(title):
+            _LOGGER.debug("Skipping station-ident title %r (no artist)", title)
+            return False
 
         # Use raw title in the key so "Song (Remix)" and "Song" are treated as
         # distinct tracks and each triggers its own cover fetch.

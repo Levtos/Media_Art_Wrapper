@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.media_player import MediaPlayerEntity, MediaPlayerEntityFeature, MediaPlayerState
+from homeassistant.components.media_player import BrowseMedia, MediaPlayerEntity, MediaPlayerEntityFeature, MediaPlayerState
+from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -86,11 +87,7 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
         if src is None:
             return MediaPlayerEntityFeature(0)
         try:
-            features = MediaPlayerEntityFeature(int(src.attributes.get("supported_features", 0)))
-            # The wrapper cannot serve browse requests itself, so strip the flag
-            # to avoid the HA warning "allows media browsing but its integration does not".
-            features &= ~MediaPlayerEntityFeature.BROWSE_MEDIA
-            return features
+            return MediaPlayerEntityFeature(int(src.attributes.get("supported_features", 0)))
         except (TypeError, ValueError):
             return MediaPlayerEntityFeature(0)
 
@@ -275,3 +272,19 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
 
     async def async_clear_playlist(self) -> None:
         await self._async_call_source("clear_playlist")
+
+    async def async_browse_media(
+        self,
+        media_content_type: str | None = None,
+        media_content_id: str | None = None,
+    ) -> BrowseMedia:
+        """Forward browse requests to the source media player entity."""
+        entity_comp = self.hass.data.get("entity_components", {}).get(MP_DOMAIN)
+        if entity_comp is not None:
+            source_entity = entity_comp.get_entity(self.source_entity_id)
+            if source_entity is not None:
+                return await source_entity.async_browse_media(
+                    media_content_type, media_content_id
+                )
+        from homeassistant.components.media_player.errors import BrowseError
+        raise BrowseError(f"Source entity {self.source_entity_id} is not available for browsing")

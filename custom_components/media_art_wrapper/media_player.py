@@ -86,7 +86,11 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
         if src is None:
             return MediaPlayerEntityFeature(0)
         try:
-            return MediaPlayerEntityFeature(int(src.attributes.get("supported_features", 0)))
+            features = MediaPlayerEntityFeature(int(src.attributes.get("supported_features", 0)))
+            # The wrapper cannot serve browse requests itself, so strip the flag
+            # to avoid the HA warning "allows media browsing but its integration does not".
+            features &= ~MediaPlayerEntityFeature.BROWSE_MEDIA
+            return features
         except (TypeError, ValueError):
             return MediaPlayerEntityFeature(0)
 

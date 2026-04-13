@@ -13,13 +13,28 @@
           "provider_5": "Priority 5 (lowest)",
           "artwork_preset": "Artwork size",
           "artwork_width": "Custom width (px)",
-          "artwork_height": "Custom height (px)"
+          "artwork_height": "Custom height (px)",
+          "create_combined": "Create combined player",
+          "combined_name": "Combined player name",
+          "combined_source_1": "Source 1 (highest priority)",
+          "combined_source_2": "Source 2",
+          "combined_source_3": "Source 3",
+          "combined_source_4": "Source 4",
+          "combined_source_5": "Source 5",
+          "combined_source_6": "Source 6",
+          "combined_source_7": "Source 7",
+          "combined_source_8": "Source 8 (lowest priority)",
+          "combined_audio_sources": "Audio control targets (optional)"
         },
         "data_description": {
           "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them.",
           "artwork_preset": "Choose a common preset or select 'Custom …' to enter exact pixel dimensions below.",
           "artwork_width": "Only used when 'Custom …' is selected above.",
-          "artwork_height": "Only used when 'Custom …' is selected above."
+          "artwork_height": "Only used when 'Custom …' is selected above.",
+          "create_combined": "When enabled, creates media_player.<name> and image.<name>_cover aggregating the sources below.",
+          "combined_name": "Used as entity ID: media_player.<name> and image.<name>_cover. Use lowercase with underscores, e.g. alle_mediengeraete.",
+          "combined_source_1": "Priority ordered: PLAYING > PAUSED/IDLE > ON. Within the same state, lower slot number wins.",
+          "combined_audio_sources": "Optional. If set, volume/shuffle/repeat and control commands are routed to the active audio source instead of the display source."
         }
       }
     },
@@ -38,15 +53,33 @@
           "provider_5": "Priority 5 (lowest)",
           "artwork_preset": "Artwork size",
           "artwork_width": "Custom width (px)",
-          "artwork_height": "Custom height (px)"
+          "artwork_height": "Custom height (px)",
+          "create_combined": "Create combined player",
+          "combined_name": "Combined player name",
+          "combined_source_1": "Source 1 (highest priority)",
+          "combined_source_2": "Source 2",
+          "combined_source_3": "Source 3",
+          "combined_source_4": "Source 4",
+          "combined_source_5": "Source 5",
+          "combined_source_6": "Source 6",
+          "combined_source_7": "Source 7",
+          "combined_source_8": "Source 8 (lowest priority)",
+          "combined_audio_sources": "Audio control targets (optional)"
         },
         "data_description": {
           "provider_1": "The first provider that returns a result is used. Set lower slots to — to disable them.",
           "artwork_preset": "Choose a common preset or select 'Custom …' to enter exact pixel dimensions below.",
           "artwork_width": "Only used when 'Custom …' is selected above.",
-          "artwork_height": "Only used when 'Custom …' is selected above."
+          "artwork_height": "Only used when 'Custom …' is selected above.",
+          "create_combined": "When enabled, creates media_player.<name> and image.<name>_cover aggregating the sources below.",
+          "combined_name": "Used as entity ID: media_player.<name> and image.<name>_cover. Use lowercase with underscores, e.g. alle_mediengeraete.",
+          "combined_source_1": "Priority ordered: PLAYING > PAUSED/IDLE > ON. Within the same state, lower slot number wins.",
+          "combined_audio_sources": "Optional. If set, volume/shuffle/repeat and control commands are routed to the active audio source instead of the display source."
         }
       }
     }
+  },
+  "errors": {
+    "combined_name_required": "A name is required when the combined player is enabled."
   }
 }

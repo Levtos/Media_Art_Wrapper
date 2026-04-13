@@ -13,13 +13,28 @@
           "provider_5": "Priorität 5 (niedrigste)",
           "artwork_preset": "Artwork-Größe",
           "artwork_width": "Benutzerdefinierte Breite (px)",
-          "artwork_height": "Benutzerdefinierte Höhe (px)"
+          "artwork_height": "Benutzerdefinierte Höhe (px)",
+          "create_combined": "Kombinierten Player erstellen",
+          "combined_name": "Name des kombinierten Players",
+          "combined_source_1": "Quelle 1 (höchste Priorität)",
+          "combined_source_2": "Quelle 2",
+          "combined_source_3": "Quelle 3",
+          "combined_source_4": "Quelle 4",
+          "combined_source_5": "Quelle 5",
+          "combined_source_6": "Quelle 6",
+          "combined_source_7": "Quelle 7",
+          "combined_source_8": "Quelle 8 (niedrigste Priorität)",
+          "combined_audio_sources": "Audio-Steuerziele (optional)"
         },
         "data_description": {
           "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
           "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
           "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "create_combined": "Wenn aktiviert, werden media_player.<name> und image.<name>_cover erstellt, die die unten angegebenen Quellen zusammenfassen.",
+          "combined_name": "Wird als Entity-ID verwendet: media_player.<name> und image.<name>_cover. Kleinbuchstaben mit Unterstrichen, z. B. alle_mediengeraete.",
+          "combined_source_1": "Prioritätsreihenfolge: PLAYING > PAUSED/IDLE > ON. Bei gleichem Zustand gewinnt die niedrigere Slotnummer.",
+          "combined_audio_sources": "Optional. Falls gesetzt, werden Lautstärke, Shuffle, Repeat und Steuerbefehle an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
         }
       }
     },
@@ -38,15 +53,33 @@
           "provider_5": "Priorität 5 (niedrigste)",
           "artwork_preset": "Artwork-Größe",
           "artwork_width": "Benutzerdefinierte Breite (px)",
-          "artwork_height": "Benutzerdefinierte Höhe (px)"
+          "artwork_height": "Benutzerdefinierte Höhe (px)",
+          "create_combined": "Kombinierten Player erstellen",
+          "combined_name": "Name des kombinierten Players",
+          "combined_source_1": "Quelle 1 (höchste Priorität)",
+          "combined_source_2": "Quelle 2",
+          "combined_source_3": "Quelle 3",
+          "combined_source_4": "Quelle 4",
+          "combined_source_5": "Quelle 5",
+          "combined_source_6": "Quelle 6",
+          "combined_source_7": "Quelle 7",
+          "combined_source_8": "Quelle 8 (niedrigste Priorität)",
+          "combined_audio_sources": "Audio-Steuerziele (optional)"
         },
         "data_description": {
           "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
           "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
           "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist."
+          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
+          "create_combined": "Wenn aktiviert, werden media_player.<name> und image.<name>_cover erstellt, die die unten angegebenen Quellen zusammenfassen.",
+          "combined_name": "Wird als Entity-ID verwendet: media_player.<name> und image.<name>_cover. Kleinbuchstaben mit Unterstrichen, z. B. alle_mediengeraete.",
+          "combined_source_1": "Prioritätsreihenfolge: PLAYING > PAUSED/IDLE > ON. Bei gleichem Zustand gewinnt die niedrigere Slotnummer.",
+          "combined_audio_sources": "Optional. Falls gesetzt, werden Lautstärke, Shuffle, Repeat und Steuerbefehle an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
         }
       }
     }
+  },
+  "errors": {
+    "combined_name_required": "Ein Name ist erforderlich, wenn der kombinierte Player aktiviert ist."
   }
 }

@@ -2,20 +2,56 @@
   "config": {
     "step": {
       "user": {
-        "title": "Media Art Wrapper",
-        "description": "Wähle einen Media Player aus. Cover Art wird anhand von media_artist + media_title ermittelt.",
+        "title": "Media Art Wrapper — Player",
+        "description": "Wähle einen Media Player aus und lege fest, wie dessen Inhalte kategorisiert werden sollen.",
         "data": {
           "source_entity_id": "Media Player",
-          "provider_1": "Priorität 1 (höchste)",
-          "provider_2": "Priorität 2",
-          "provider_3": "Priorität 3",
-          "provider_4": "Priorität 4",
-          "provider_5": "Priorität 5 (niedrigste)",
-          "artwork_preset": "Artwork-Größe",
+          "display_name": "Anzeigename",
+          "category": "Inhaltskategorie"
+        },
+        "data_description": {
+          "source_entity_id": "Die Media-Player-Entity, deren Artwork ermittelt werden soll.",
+          "display_name": "In Home Assistant angezeigter Name. Leer lassen, um den Playernamen zu verwenden.",
+          "category": "Bestimmt, welche Artwork-Provider verwendet werden. Auto probiert alle Provider."
+        }
+      },
+      "artwork": {
+        "title": "Media Art Wrapper — Artwork",
+        "description": "Konfiguriere Bildabmessungen, Fallback-Verhalten und optionale API-Schlüssel.",
+        "data": {
+          "ratio": "Seitenverhältnis",
           "artwork_width": "Benutzerdefinierte Breite (px)",
           "artwork_height": "Benutzerdefinierte Höhe (px)",
+          "fallback_mode": "Fallback wenn kein Artwork gefunden wird",
+          "fallback_custom_url": "URL für benutzerdefiniertes Fallback-Bild",
+          "tmdb_api_key": "TMDb API-Schlüssel (Streaming)",
+          "igdb_client_id": "IGDB Client ID (Gaming)",
+          "igdb_client_secret": "IGDB Client Secret (Gaming)",
+          "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
+          "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
+          "xmltv_url": "XMLTV EPG-Feed URL (optional, TV)"
+        },
+        "data_description": {
+          "ratio": "Voreingestellte Abmessungen für das Artwork-Bild. Custom für eigene Pixelwerte wählen.",
+          "artwork_width": "Nur aktiv wenn oben Custom gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben Custom gewählt ist.",
+          "fallback_mode": "Was angezeigt wird, wenn kein Artwork für den aktuellen Titel gefunden wird.",
+          "fallback_custom_url": "Vollständige URL eines Bildes, das als Fallback angezeigt wird. Nur aktiv bei Custom URL.",
+          "tmdb_api_key": "Erforderlich für Streaming-Artwork von The Movie Database. Leer lassen zum Überspringen.",
+          "igdb_client_id": "Twitch-Developer-App Client ID, erforderlich für IGDB-Spiele-Cover.",
+          "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
+          "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
+          "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
+          "xmltv_url": "Optionaler XMLTV-EPG-Feed für erweitertes Kanal-Programm-Matching. Noch nicht implementiert (geplant für v3.1)."
+        }
+      },
+      "combined": {
+        "title": "Media Art Wrapper — Kombinierter Player",
+        "description": "Optional einen virtuellen kombinierten Player erstellen, der mehrere Media Player zusammenfasst.",
+        "data": {
           "create_combined": "Kombinierten Player erstellen",
           "combined_name": "Name des kombinierten Players",
+          "auto_priority": "Quellen automatisch nach Kategorie-Priorität sortieren",
           "combined_source_1": "Quelle 1 (höchste Priorität)",
           "combined_source_2": "Quelle 2",
           "combined_source_3": "Quelle 3",
@@ -27,14 +63,11 @@
           "combined_audio_sources": "Audio-Steuerziele (optional)"
         },
         "data_description": {
-          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
-          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
-          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "create_combined": "Wenn aktiviert, werden media_player.<name> und image.<name>_cover erstellt, die die unten angegebenen Quellen zusammenfassen.",
-          "combined_name": "Wird als Entity-ID verwendet: media_player.<name> und image.<name>_cover. Kleinbuchstaben mit Unterstrichen, z. B. alle_mediengeraete.",
-          "combined_source_1": "Prioritätsreihenfolge: PLAYING > PAUSED/IDLE > ON. Bei gleichem Zustand gewinnt die niedrigere Slotnummer.",
-          "combined_audio_sources": "Optional. Falls gesetzt, werden Lautstärke, Shuffle, Repeat und Steuerbefehle an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
+          "create_combined": "Wenn aktiviert, werden eine virtuelle media_player-Entity und eine Cover-Bild-Entity erstellt, die die unten angegebenen Quellen zusammenfassen.",
+          "combined_name": "Wird für die Entity-Namen verwendet: media_player.NAME und image.NAME_cover. Nur Kleinbuchstaben und Unterstriche.",
+          "auto_priority": "Wenn aktiviert, werden Quellen automatisch nach Kategorie sortiert: Gaming zuerst, dann Streaming, TV, Musik, Auto.",
+          "combined_source_1": "Prioritätsreihenfolge: PLAYING oder BUFFERING schlägt PAUSED oder IDLE, was ON schlägt. Bei gleichem Status gewinnt die niedrigere Slotnummer.",
+          "combined_audio_sources": "Optional. Lautstärke, Shuffle, Repeat und Wiedergabebefehle werden an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
         }
       }
     },
@@ -45,17 +78,54 @@
   "options": {
     "step": {
       "init": {
+        "title": "Media Art Wrapper — Player",
+        "description": "Kategorie und Anzeigename für diesen Media Player aktualisieren.",
         "data": {
-          "provider_1": "Priorität 1 (höchste)",
-          "provider_2": "Priorität 2",
-          "provider_3": "Priorität 3",
-          "provider_4": "Priorität 4",
-          "provider_5": "Priorität 5 (niedrigste)",
-          "artwork_preset": "Artwork-Größe",
+          "display_name": "Anzeigename",
+          "category": "Inhaltskategorie"
+        },
+        "data_description": {
+          "display_name": "In Home Assistant angezeigter Name.",
+          "category": "Bestimmt, welche Artwork-Provider verwendet werden. Auto probiert alle Provider."
+        }
+      },
+      "artwork": {
+        "title": "Media Art Wrapper — Artwork",
+        "description": "Konfiguriere Bildabmessungen, Fallback-Verhalten und optionale API-Schlüssel.",
+        "data": {
+          "ratio": "Seitenverhältnis",
           "artwork_width": "Benutzerdefinierte Breite (px)",
           "artwork_height": "Benutzerdefinierte Höhe (px)",
+          "fallback_mode": "Fallback wenn kein Artwork gefunden wird",
+          "fallback_custom_url": "URL für benutzerdefiniertes Fallback-Bild",
+          "tmdb_api_key": "TMDb API-Schlüssel (Streaming)",
+          "igdb_client_id": "IGDB Client ID (Gaming)",
+          "igdb_client_secret": "IGDB Client Secret (Gaming)",
+          "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
+          "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
+          "xmltv_url": "XMLTV EPG-Feed URL (optional, TV)"
+        },
+        "data_description": {
+          "ratio": "Voreingestellte Abmessungen für das Artwork-Bild. Custom für eigene Pixelwerte wählen.",
+          "artwork_width": "Nur aktiv wenn oben Custom gewählt ist.",
+          "artwork_height": "Nur aktiv wenn oben Custom gewählt ist.",
+          "fallback_mode": "Was angezeigt wird, wenn kein Artwork für den aktuellen Titel gefunden wird.",
+          "fallback_custom_url": "Vollständige URL eines Bildes, das als Fallback angezeigt wird. Nur aktiv bei Custom URL.",
+          "tmdb_api_key": "Erforderlich für Streaming-Artwork von The Movie Database. Leer lassen zum Überspringen.",
+          "igdb_client_id": "Twitch-Developer-App Client ID, erforderlich für IGDB-Spiele-Cover.",
+          "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
+          "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
+          "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
+          "xmltv_url": "Optionaler XMLTV-EPG-Feed für erweitertes Kanal-Programm-Matching. Noch nicht implementiert (geplant für v3.1)."
+        }
+      },
+      "combined": {
+        "title": "Media Art Wrapper — Kombinierter Player",
+        "description": "Optional einen virtuellen kombinierten Player erstellen, der mehrere Media Player zusammenfasst.",
+        "data": {
           "create_combined": "Kombinierten Player erstellen",
           "combined_name": "Name des kombinierten Players",
+          "auto_priority": "Quellen automatisch nach Kategorie-Priorität sortieren",
           "combined_source_1": "Quelle 1 (höchste Priorität)",
           "combined_source_2": "Quelle 2",
           "combined_source_3": "Quelle 3",
@@ -67,14 +137,11 @@
           "combined_audio_sources": "Audio-Steuerziele (optional)"
         },
         "data_description": {
-          "provider_1": "Der erste Provider, der ein Ergebnis liefert, wird verwendet. Nicht benötigte Slots auf — setzen.",
-          "artwork_preset": "Häufige Größe auswählen oder 'Benutzerdefiniert …' für eigene Pixelangaben.",
-          "artwork_width": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "artwork_height": "Nur aktiv wenn oben 'Benutzerdefiniert …' gewählt ist.",
-          "create_combined": "Wenn aktiviert, werden media_player.<name> und image.<name>_cover erstellt, die die unten angegebenen Quellen zusammenfassen.",
-          "combined_name": "Wird als Entity-ID verwendet: media_player.<name> und image.<name>_cover. Kleinbuchstaben mit Unterstrichen, z. B. alle_mediengeraete.",
-          "combined_source_1": "Prioritätsreihenfolge: PLAYING > PAUSED/IDLE > ON. Bei gleichem Zustand gewinnt die niedrigere Slotnummer.",
-          "combined_audio_sources": "Optional. Falls gesetzt, werden Lautstärke, Shuffle, Repeat und Steuerbefehle an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
+          "create_combined": "Wenn aktiviert, werden eine virtuelle media_player-Entity und eine Cover-Bild-Entity erstellt, die die unten angegebenen Quellen zusammenfassen.",
+          "combined_name": "Wird für die Entity-Namen verwendet: media_player.NAME und image.NAME_cover. Nur Kleinbuchstaben und Unterstriche.",
+          "auto_priority": "Wenn aktiviert, werden Quellen automatisch nach Kategorie sortiert: Gaming zuerst, dann Streaming, TV, Musik, Auto.",
+          "combined_source_1": "Prioritätsreihenfolge: PLAYING oder BUFFERING schlägt PAUSED oder IDLE, was ON schlägt. Bei gleichem Status gewinnt die niedrigere Slotnummer.",
+          "combined_audio_sources": "Optional. Lautstärke, Shuffle, Repeat und Wiedergabebefehle werden an die aktive Audio-Quelle statt an die Anzeigequelle weitergeleitet."
         }
       }
     }

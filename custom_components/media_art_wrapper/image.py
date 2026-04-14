@@ -18,9 +18,13 @@ from .const import (
     CONF_COMBINED_NAME,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
+    CONF_FALLBACK_CUSTOM_URL,
+    CONF_FALLBACK_MODE,
     DOMAIN,
+    FALLBACK_CUSTOM_URL_MODE,
+    FALLBACK_SERVICE_LOGO,
 )
-from .helpers import FALLBACK_IMAGE, source_name
+from .helpers import FALLBACK_IMAGE, service_logo, source_name
 from .media_player import _TIER1, _TIER2, _TIER3, _safe_state
 
 
@@ -65,11 +69,40 @@ class MediaCoverArtImage(CoordinatorEntity[CoverCoordinator], ImageEntity):
 
     async def async_image(self) -> bytes | None:
         data: CoverData | None = self.coordinator.data
-        if not data or not data.image:
-            self._attr_content_type = "image/png"
-            return FALLBACK_IMAGE
-        self._attr_content_type = data.content_type or "image/jpeg"
-        return data.image
+        if data and data.image:
+            self._attr_content_type = data.content_type or "image/jpeg"
+            return data.image
+
+        # No artwork — apply the configured fallback mode
+        opts = self._entry.options
+        fallback_mode = opts.get(CONF_FALLBACK_MODE, "placeholder")
+
+        if fallback_mode == FALLBACK_SERVICE_LOGO:
+            # Try app_name from the source entity state
+            state = self.hass.states.get(self.coordinator.source_entity_id)
+            app_name = state.attributes.get("app_name", "") if state else ""
+            logo = service_logo(app_name) if app_name else None
+            if logo:
+                self._attr_content_type = "image/png"
+                return logo
+
+        if fallback_mode == FALLBACK_CUSTOM_URL_MODE:
+            custom_url = str(opts.get(CONF_FALLBACK_CUSTOM_URL, "")).strip()
+            if custom_url.startswith("http"):
+                try:
+                    session = aiohttp_client.async_get_clientsession(self.hass)
+                    async with session.get(custom_url, timeout=10) as resp:
+                        if resp.status == 200:
+                            ct = resp.headers.get("Content-Type", "image/jpeg")
+                            self._attr_content_type = ct.split(";")[0].strip()
+                            img = await resp.read()
+                            if img:
+                                return img
+                except Exception:
+                    pass
+
+        self._attr_content_type = "image/png"
+        return FALLBACK_IMAGE
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

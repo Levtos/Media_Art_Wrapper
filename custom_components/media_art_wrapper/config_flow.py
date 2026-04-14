@@ -1,3 +1,4 @@
+"""Config flow — 3-step setup for Media Art Wrapper v3."""
 from __future__ import annotations
 
 from typing import Any
@@ -5,125 +6,100 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CATEGORIES,
+    CATEGORY_AUTO,
+    CATEGORY_GAMING,
+    CATEGORY_MUSIC,
+    CATEGORY_STREAMING,
+    CATEGORY_TV,
     COMBINED_NUM_SOURCE_SLOTS,
+    CONF_AUTO_PRIORITY,
     CONF_ARTWORK_HEIGHT,
-    CONF_ARTWORK_SIZE,
     CONF_ARTWORK_WIDTH,
+    CONF_CATEGORY,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_NAME,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
-    CONF_PROVIDERS,
+    CONF_DISPLAY_NAME,
+    CONF_FALLBACK_CUSTOM_URL,
+    CONF_FALLBACK_MODE,
+    CONF_FANART_API_KEY,
+    CONF_IGDB_CLIENT_ID,
+    CONF_IGDB_CLIENT_SECRET,
+    CONF_RATIO,
     CONF_SOURCE_ENTITY_ID,
+    CONF_STEAMGRIDDB_API_KEY,
+    CONF_TMDB_API_KEY,
+    CONF_XMLTV_URL,
     DEFAULT_ARTWORK_HEIGHT,
-    DEFAULT_ARTWORK_SIZE,
     DEFAULT_ARTWORK_WIDTH,
-    DEFAULT_PROVIDERS,
     DOMAIN,
-    PROVIDER_BATTLENET,
-    PROVIDER_ITUNES,
-    PROVIDER_MUSICBRAINZ,
-    PROVIDER_STEAM,
-    PROVIDER_TV,
+    FALLBACK_CUSTOM_URL_MODE,
+    FALLBACK_PLACEHOLDER,
+    FALLBACK_SERVICE_LOGO,
+    RATIO_1_1,
+    RATIO_4_3,
+    RATIO_16_9,
+    RATIO_CUSTOM,
+    RATIO_DIMENSIONS,
 )
 
 # ---------------------------------------------------------------------------
-# Provider priority slots
+# UI helpers
 # ---------------------------------------------------------------------------
 
-# Internal form-field names for the priority slots (UI only, not persisted)
-_SLOT_KEYS = ["provider_1", "provider_2", "provider_3", "provider_4", "provider_5"]
-
-# Sentinel value for an empty / disabled slot
-_NONE = ""
-
-_PROVIDER_OPTIONS_WITH_NONE = [
-    {"value": _NONE, "label": "—"},
-    {"value": PROVIDER_ITUNES, "label": "iTunes (Apple Search API)"},
-    {"value": PROVIDER_MUSICBRAINZ, "label": "MusicBrainz + Cover Art Archive"},
-    {"value": PROVIDER_TV, "label": "TV (iTunes TV + TVMaze + Wikipedia-Senderlogos)"},
-    {"value": PROVIDER_BATTLENET, "label": "Battle.net (Overwatch, WoW, Hearthstone, …)"},
-    {"value": PROVIDER_STEAM, "label": "Steam (alle Steam-Spiele, z. B. Civilization VII)"},
+_CATEGORY_OPTIONS = [
+    {"value": CATEGORY_MUSIC,     "label": "Music"},
+    {"value": CATEGORY_STREAMING, "label": "Streaming (films & series)"},
+    {"value": CATEGORY_GAMING,    "label": "Gaming"},
+    {"value": CATEGORY_TV,        "label": "TV / Live TV"},
+    {"value": CATEGORY_AUTO,      "label": "Auto (try all providers)"},
 ]
 
-_SLOT_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(
-        options=_PROVIDER_OPTIONS_WITH_NONE,
-        multiple=False,
-        mode=selector.SelectSelectorMode.DROPDOWN,
-    )
-)
-
-# ---------------------------------------------------------------------------
-# Artwork size presets
-# ---------------------------------------------------------------------------
-
-# UI-only field key for the preset selector (not persisted)
-_CONF_ARTWORK_PRESET = "artwork_preset"
-_PRESET_CUSTOM = "custom"
-
-# Ordered (width, height) for each preset key
-_ARTWORK_PRESETS: dict[str, tuple[int, int]] = {
-    "300x300": (300, 300),
-    "600x600": (600, 600),
-    "800x800": (800, 800),
-    "1000x1000": (1000, 1000),
-    "600x900": (600, 900),
-    "1200x1800": (1200, 1800),
-}
-
-_PRESET_OPTIONS = [
-    {"value": "300x300",    "label": "300 × 300 px"},
-    {"value": "600x600",    "label": "600 × 600 px (Standard)"},
-    {"value": "800x800",    "label": "800 × 800 px"},
-    {"value": "1000x1000",  "label": "1000 × 1000 px"},
-    {"value": "600x900",    "label": "600 × 900 px (Hochformat, z. B. Steam)"},
-    {"value": "1200x1800",  "label": "1200 × 1800 px (Hochformat HD, Steam 2×)"},
-    {"value": _PRESET_CUSTOM, "label": "Benutzerdefiniert …"},
+_RATIO_OPTIONS = [
+    {"value": RATIO_1_1,     "label": "1:1  — 600 × 600 px (music / gaming)"},
+    {"value": RATIO_4_3,     "label": "4:3  — 800 × 600 px"},
+    {"value": RATIO_16_9,    "label": "16:9 — 960 × 540 px (landscape TV)"},
+    {"value": RATIO_CUSTOM,  "label": "Custom …"},
 ]
 
-_PRESET_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(
-        options=_PRESET_OPTIONS,
-        multiple=False,
-        mode=selector.SelectSelectorMode.DROPDOWN,
-    )
-)
+_FALLBACK_OPTIONS = [
+    {"value": FALLBACK_PLACEHOLDER,    "label": "Placeholder icon"},
+    {"value": FALLBACK_SERVICE_LOGO,   "label": "Service logo (auto-detected)"},
+    {"value": FALLBACK_CUSTOM_URL_MODE, "label": "Custom URL …"},
+]
 
-
-def _detect_preset(width: int, height: int) -> str:
-    """Return the preset key matching (width, height), or _PRESET_CUSTOM."""
-    for key, dims in _ARTWORK_PRESETS.items():
-        if dims == (width, height):
-            return key
-    return _PRESET_CUSTOM
-
-
-# ---------------------------------------------------------------------------
-# Combined Player helpers
-# ---------------------------------------------------------------------------
-
-# Internal form-field names for the 8 combined source priority slots (UI only)
 _COMBINED_SLOT_KEYS = [f"combined_source_{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
 
-_COMBINED_ENTITY_SELECTOR = selector.EntitySelector(
+_ENTITY_SEL = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="media_player", multiple=False)
 )
-
-_COMBINED_AUDIO_SELECTOR = selector.EntitySelector(
+_MULTI_ENTITY_SEL = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="media_player", multiple=True)
 )
 
 
-def _combined_slots_to_sources(form_data: dict[str, Any]) -> list[str]:
-    """Convert numbered slot form values to an ordered sources list.
+def _ratio_to_dims(ratio: str, width: int, height: int) -> tuple[int, int]:
+    """Return (width, height) from a ratio preset or custom values."""
+    if ratio in RATIO_DIMENSIONS:
+        return RATIO_DIMENSIONS[ratio]
+    return (max(1, width), max(1, height))
 
-    Duplicates and absent/empty slots are silently dropped.
-    """
+
+def _dims_to_ratio(width: int, height: int) -> str:
+    """Return the ratio key that matches (width, height), or RATIO_CUSTOM."""
+    for key, dims in RATIO_DIMENSIONS.items():
+        if dims == (width, height):
+            return key
+    return RATIO_CUSTOM
+
+
+def _combined_slots_to_sources(form_data: dict[str, Any]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
     for key in _COMBINED_SLOT_KEYS:
@@ -135,233 +111,340 @@ def _combined_slots_to_sources(form_data: dict[str, Any]) -> list[str]:
 
 
 def _combined_sources_to_slots(sources: list[str]) -> dict[str, str]:
-    """Return a mapping of slot-key → entity_id for filled slots only."""
     return {
         _COMBINED_SLOT_KEYS[i]: sources[i]
         for i in range(min(len(sources), COMBINED_NUM_SOURCE_SLOTS))
     }
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _providers_to_slots(providers: list[str]) -> dict[str, str]:
-    """Convert an ordered providers list to the numbered slot form values."""
-    slots: dict[str, str] = {}
-    for i, key in enumerate(_SLOT_KEYS):
-        slots[key] = providers[i] if i < len(providers) else _NONE
-    return slots
-
-
-def _slots_to_providers(form_data: dict[str, Any]) -> list[str]:
-    """Convert numbered slot form values back to an ordered providers list.
-
-    Duplicates and empty slots are silently dropped.
-    """
-    seen: set[str] = set()
-    result: list[str] = []
-    for key in _SLOT_KEYS:
-        val = str(form_data.get(key, _NONE)).strip()
-        if val and val not in seen:
-            seen.add(val)
-            result.append(val)
-    return result or list(DEFAULT_PROVIDERS)
-
-
-def _resolve_dimensions(form_data: dict[str, Any]) -> tuple[int, int]:
-    """Return (width, height) from form data, honouring the preset selector."""
-    preset = str(form_data.get(_CONF_ARTWORK_PRESET, _PRESET_CUSTOM))
-    if preset in _ARTWORK_PRESETS:
-        return _ARTWORK_PRESETS[preset]
-    width = int(form_data.get(CONF_ARTWORK_WIDTH, DEFAULT_ARTWORK_WIDTH))
-    height = int(form_data.get(CONF_ARTWORK_HEIGHT, DEFAULT_ARTWORK_HEIGHT))
-    return width, height
-
-
-def _slot_schema(
-    source_entity_id: str | None,
-    slots: dict[str, str],
-    artwork_width: int,
-    artwork_height: int,
-    *,
-    include_source: bool,
-    create_combined: bool = False,
-    combined_name: str = "",
-    combined_sources: list[str] | None = None,
-    combined_audio_sources: list[str] | None = None,
-) -> vol.Schema:
-    fields: dict[Any, Any] = {}
-
-    if include_source:
-        fields[vol.Required(CONF_SOURCE_ENTITY_ID, default=source_entity_id)] = (
-            selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="media_player", multiple=False)
-            )
-        )
-
-    for key in _SLOT_KEYS:
-        fields[vol.Optional(key, default=slots.get(key, _NONE))] = _SLOT_SELECTOR
-
-    fields[vol.Optional(_CONF_ARTWORK_PRESET, default=_detect_preset(artwork_width, artwork_height))] = (
-        _PRESET_SELECTOR
-    )
-    fields[vol.Optional(CONF_ARTWORK_WIDTH, default=artwork_width)] = vol.All(
-        vol.Coerce(int), vol.Range(min=1)
-    )
-    fields[vol.Optional(CONF_ARTWORK_HEIGHT, default=artwork_height)] = vol.All(
-        vol.Coerce(int), vol.Range(min=1)
-    )
-
-    # ---- Combined Player section ----
-    fields[vol.Optional(CONF_CREATE_COMBINED, default=create_combined)] = (
-        selector.BooleanSelector()
-    )
-    fields[vol.Optional(CONF_COMBINED_NAME, default=combined_name)] = (
-        selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT))
-    )
-
-    # 8 priority slots for combined sources
-    slot_defaults = _combined_sources_to_slots(combined_sources or [])
-    for key in _COMBINED_SLOT_KEYS:
-        existing = slot_defaults.get(key)
-        if existing:
-            fields[vol.Optional(key, default=existing)] = _COMBINED_ENTITY_SELECTOR
-        else:
-            fields[vol.Optional(key)] = _COMBINED_ENTITY_SELECTOR
-
-    # Multi-select audio sources
-    fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=combined_audio_sources or [])] = (
-        _COMBINED_AUDIO_SELECTOR
-    )
-
-    return vol.Schema(fields)
-
-
 async def _friendly_name(hass: HomeAssistant, entity_id: str) -> str:
     state = hass.states.get(entity_id)
     if state and "friendly_name" in state.attributes:
         return str(state.attributes["friendly_name"])
-    return entity_id
+    return entity_id.split(".", 1)[-1].replace("_", " ").title()
 
 
 # ---------------------------------------------------------------------------
-# Config flow
+# Schema builders
+# ---------------------------------------------------------------------------
+
+def _step1_schema(
+    source_entity_id: str | None = None,
+    display_name: str = "",
+    category: str = CATEGORY_AUTO,
+    *,
+    include_source: bool = True,
+) -> vol.Schema:
+    fields: dict[Any, Any] = {}
+    if include_source:
+        kw: dict[str, Any] = {"default": source_entity_id} if source_entity_id else {}
+        fields[vol.Required(CONF_SOURCE_ENTITY_ID, **kw)] = _ENTITY_SEL
+    fields[vol.Optional(CONF_DISPLAY_NAME, default=display_name)] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+    )
+    fields[vol.Required(CONF_CATEGORY, default=category)] = selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=_CATEGORY_OPTIONS,
+            multiple=False,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+    return vol.Schema(fields)
+
+
+def _step2_schema(
+    category: str,
+    opts: dict[str, Any],
+) -> vol.Schema:
+    """Build the artwork + API-keys step schema for the given category."""
+    ratio = opts.get(CONF_RATIO, RATIO_1_1)
+    width = int(opts.get(CONF_ARTWORK_WIDTH, DEFAULT_ARTWORK_WIDTH))
+    height = int(opts.get(CONF_ARTWORK_HEIGHT, DEFAULT_ARTWORK_HEIGHT))
+    fallback_mode = opts.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER)
+    fallback_url = opts.get(CONF_FALLBACK_CUSTOM_URL, "")
+
+    fields: dict[Any, Any] = {
+        vol.Required(CONF_RATIO, default=ratio): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=_RATIO_OPTIONS,
+                multiple=False,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_ARTWORK_WIDTH, default=width): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional(CONF_ARTWORK_HEIGHT, default=height): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Required(CONF_FALLBACK_MODE, default=fallback_mode): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=_FALLBACK_OPTIONS,
+                multiple=False,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_FALLBACK_CUSTOM_URL, default=fallback_url): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
+        ),
+    }
+
+    # Category-specific API key fields
+    if category in (CATEGORY_STREAMING, CATEGORY_AUTO):
+        fields[vol.Optional(CONF_TMDB_API_KEY, default=opts.get(CONF_TMDB_API_KEY, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
+        )
+
+    if category in (CATEGORY_GAMING, CATEGORY_AUTO):
+        fields[vol.Optional(CONF_IGDB_CLIENT_ID, default=opts.get(CONF_IGDB_CLIENT_ID, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT))
+        )
+        fields[vol.Optional(CONF_IGDB_CLIENT_SECRET, default=opts.get(CONF_IGDB_CLIENT_SECRET, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
+        )
+        fields[vol.Optional(CONF_STEAMGRIDDB_API_KEY, default=opts.get(CONF_STEAMGRIDDB_API_KEY, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
+        )
+
+    if category in (CATEGORY_TV, CATEGORY_AUTO):
+        fields[vol.Optional(CONF_FANART_API_KEY, default=opts.get(CONF_FANART_API_KEY, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))
+        )
+        fields[vol.Optional(CONF_XMLTV_URL, default=opts.get(CONF_XMLTV_URL, ""))] = (
+            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL))
+        )
+
+    return vol.Schema(fields)
+
+
+def _step3_schema(
+    opts: dict[str, Any],
+    category: str,
+) -> vol.Schema:
+    create_combined = bool(opts.get(CONF_CREATE_COMBINED, False))
+    combined_name = str(opts.get(CONF_COMBINED_NAME, "")).strip()
+    combined_sources: list[str] = list(opts.get(CONF_COMBINED_SOURCES, []))
+    combined_audio: list[str] = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, []))
+    auto_priority = bool(opts.get(CONF_AUTO_PRIORITY, True))
+
+    fields: dict[Any, Any] = {
+        vol.Optional(CONF_CREATE_COMBINED, default=create_combined): selector.BooleanSelector(),
+        vol.Optional(CONF_COMBINED_NAME, default=combined_name): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+        ),
+        vol.Optional(CONF_AUTO_PRIORITY, default=auto_priority): selector.BooleanSelector(),
+    }
+
+    slot_defaults = _combined_sources_to_slots(combined_sources)
+    for key in _COMBINED_SLOT_KEYS:
+        existing = slot_defaults.get(key)
+        if existing:
+            fields[vol.Optional(key, default=existing)] = _ENTITY_SEL
+        else:
+            fields[vol.Optional(key)] = _ENTITY_SEL
+
+    fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=combined_audio)] = _MULTI_ENTITY_SEL
+
+    return vol.Schema(fields)
+
+
+# ---------------------------------------------------------------------------
+# Config flow (3-step setup)
 # ---------------------------------------------------------------------------
 
 class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 2
+    VERSION = 3
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._step1: dict[str, Any] = {}
+        self._step2: dict[str, Any] = {}
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        errors: dict[str, str] = {}
-
         if user_input is not None:
             source_entity_id = user_input[CONF_SOURCE_ENTITY_ID]
             await self.async_set_unique_id(source_entity_id)
             self._abort_if_unique_id_configured()
 
+            # Derive display_name from entity state if blank
+            display_name = str(user_input.get(CONF_DISPLAY_NAME, "")).strip()
+            if not display_name:
+                display_name = await _friendly_name(self.hass, source_entity_id)
+
+            self._step1 = {
+                CONF_SOURCE_ENTITY_ID: source_entity_id,
+                CONF_DISPLAY_NAME: display_name,
+                CONF_CATEGORY: user_input.get(CONF_CATEGORY, CATEGORY_AUTO),
+            }
+            return await self.async_step_artwork()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_step1_schema(include_source=True),
+        )
+
+    async def async_step_artwork(self, user_input: dict[str, Any] | None = None):
+        category = self._step1.get(CONF_CATEGORY, CATEGORY_AUTO)
+
+        if user_input is not None:
+            ratio = user_input.get(CONF_RATIO, RATIO_1_1)
+            width, height = _ratio_to_dims(
+                ratio,
+                int(user_input.get(CONF_ARTWORK_WIDTH, DEFAULT_ARTWORK_WIDTH)),
+                int(user_input.get(CONF_ARTWORK_HEIGHT, DEFAULT_ARTWORK_HEIGHT)),
+            )
+            self._step2 = {
+                CONF_RATIO: ratio,
+                CONF_ARTWORK_WIDTH: width,
+                CONF_ARTWORK_HEIGHT: height,
+                CONF_FALLBACK_MODE: user_input.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER),
+                CONF_FALLBACK_CUSTOM_URL: user_input.get(CONF_FALLBACK_CUSTOM_URL, ""),
+                CONF_TMDB_API_KEY: user_input.get(CONF_TMDB_API_KEY, ""),
+                CONF_IGDB_CLIENT_ID: user_input.get(CONF_IGDB_CLIENT_ID, ""),
+                CONF_IGDB_CLIENT_SECRET: user_input.get(CONF_IGDB_CLIENT_SECRET, ""),
+                CONF_STEAMGRIDDB_API_KEY: user_input.get(CONF_STEAMGRIDDB_API_KEY, ""),
+                CONF_FANART_API_KEY: user_input.get(CONF_FANART_API_KEY, ""),
+                CONF_XMLTV_URL: user_input.get(CONF_XMLTV_URL, ""),
+            }
+            return await self.async_step_combined()
+
+        return self.async_show_form(
+            step_id="artwork",
+            data_schema=_step2_schema(category, {}),
+        )
+
+    async def async_step_combined(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
             create_combined = bool(user_input.get(CONF_CREATE_COMBINED, False))
             combined_name = str(user_input.get(CONF_COMBINED_NAME, "")).strip()
+
             if create_combined and not combined_name:
                 errors[CONF_COMBINED_NAME] = "combined_name_required"
 
             if not errors:
-                title = await _friendly_name(self.hass, source_entity_id)
-                artwork_width, artwork_height = _resolve_dimensions(user_input)
-
-                data = {
-                    CONF_SOURCE_ENTITY_ID: source_entity_id,
-                    CONF_PROVIDERS: _slots_to_providers(user_input),
-                    CONF_ARTWORK_WIDTH: artwork_width,
-                    CONF_ARTWORK_HEIGHT: artwork_height,
+                data = {CONF_SOURCE_ENTITY_ID: self._step1[CONF_SOURCE_ENTITY_ID]}
+                options = {
+                    **self._step1,
+                    **self._step2,
                     CONF_CREATE_COMBINED: create_combined,
                     CONF_COMBINED_NAME: combined_name,
                     CONF_COMBINED_SOURCES: _combined_slots_to_sources(user_input),
                     CONF_COMBINED_AUDIO_SOURCES: list(user_input.get(CONF_COMBINED_AUDIO_SOURCES) or []),
+                    CONF_AUTO_PRIORITY: bool(user_input.get(CONF_AUTO_PRIORITY, True)),
                 }
-                return self.async_create_entry(title=title, data=data)
+                # Remove source_entity_id from options (it lives only in data)
+                options.pop(CONF_SOURCE_ENTITY_ID, None)
 
-        schema = _slot_schema(
-            source_entity_id=None,
-            slots=_providers_to_slots(list(DEFAULT_PROVIDERS)),
-            artwork_width=DEFAULT_ARTWORK_WIDTH,
-            artwork_height=DEFAULT_ARTWORK_HEIGHT,
-            include_source=True,
+                title = self._step1.get(CONF_DISPLAY_NAME) or self._step1[CONF_SOURCE_ENTITY_ID]
+                return self.async_create_entry(title=title, data=data, options=options)
+
+        return self.async_show_form(
+            step_id="combined",
+            data_schema=_step3_schema({}, self._step1.get(CONF_CATEGORY, CATEGORY_AUTO)),
+            errors=errors,
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry):
         return MediaCoverArtOptionsFlow(config_entry)
 
 
+# ---------------------------------------------------------------------------
+# Options flow (mirrors the 3 config steps, minus source_entity_id)
+# ---------------------------------------------------------------------------
+
 class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        super().__init__(config_entry)
+        self._step1_opts: dict[str, Any] = {}
+        self._artwork_opts: dict[str, Any] = {}
+
+    def _current_opts(self) -> dict[str, Any]:
+        opts = dict(self.config_entry.options)
+        # Fall back to entry.data for legacy fields
+        for key in (CONF_CATEGORY, CONF_DISPLAY_NAME):
+            if key not in opts:
+                opts[key] = self.config_entry.data.get(key, "")
+        return opts
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        opts = self._current_opts()
+        category = opts.get(CONF_CATEGORY, CATEGORY_AUTO)
+        display_name = str(opts.get(CONF_DISPLAY_NAME, "")).strip()
+
+        if user_input is not None:
+            new_category = user_input.get(CONF_CATEGORY, CATEGORY_AUTO)
+            new_display_name = str(user_input.get(CONF_DISPLAY_NAME, "")).strip()
+            self._step1_opts = {
+                CONF_CATEGORY: new_category,
+                CONF_DISPLAY_NAME: new_display_name,
+            }
+            return await self.async_step_artwork()
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_step1_schema(
+                display_name=display_name,
+                category=category,
+                include_source=False,
+            ),
+        )
+
+    async def async_step_artwork(self, user_input: dict[str, Any] | None = None):
+        opts = self._current_opts()
+        category = self._step1_opts.get(CONF_CATEGORY, opts.get(CONF_CATEGORY, CATEGORY_AUTO))
+
+        if user_input is not None:
+            ratio = user_input.get(CONF_RATIO, RATIO_1_1)
+            width, height = _ratio_to_dims(
+                ratio,
+                int(user_input.get(CONF_ARTWORK_WIDTH, DEFAULT_ARTWORK_WIDTH)),
+                int(user_input.get(CONF_ARTWORK_HEIGHT, DEFAULT_ARTWORK_HEIGHT)),
+            )
+            self._artwork_opts: dict[str, Any] = {
+                CONF_RATIO: ratio,
+                CONF_ARTWORK_WIDTH: width,
+                CONF_ARTWORK_HEIGHT: height,
+                CONF_FALLBACK_MODE: user_input.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER),
+                CONF_FALLBACK_CUSTOM_URL: user_input.get(CONF_FALLBACK_CUSTOM_URL, ""),
+                CONF_TMDB_API_KEY: user_input.get(CONF_TMDB_API_KEY, ""),
+                CONF_IGDB_CLIENT_ID: user_input.get(CONF_IGDB_CLIENT_ID, ""),
+                CONF_IGDB_CLIENT_SECRET: user_input.get(CONF_IGDB_CLIENT_SECRET, ""),
+                CONF_STEAMGRIDDB_API_KEY: user_input.get(CONF_STEAMGRIDDB_API_KEY, ""),
+                CONF_FANART_API_KEY: user_input.get(CONF_FANART_API_KEY, ""),
+                CONF_XMLTV_URL: user_input.get(CONF_XMLTV_URL, ""),
+            }
+            return await self.async_step_combined()
+
+        return self.async_show_form(
+            step_id="artwork",
+            data_schema=_step2_schema(category, opts),
+        )
+
+    async def async_step_combined(self, user_input: dict[str, Any] | None = None):
+        opts = self._current_opts()
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            artwork_width, artwork_height = _resolve_dimensions(user_input)
             create_combined = bool(user_input.get(CONF_CREATE_COMBINED, False))
             combined_name = str(user_input.get(CONF_COMBINED_NAME, "")).strip()
+
             if create_combined and not combined_name:
                 errors[CONF_COMBINED_NAME] = "combined_name_required"
 
             if not errors:
-                data = {
-                    CONF_PROVIDERS: _slots_to_providers(user_input),
-                    CONF_ARTWORK_WIDTH: artwork_width,
-                    CONF_ARTWORK_HEIGHT: artwork_height,
+                new_options = {
+                    **self._step1_opts,
+                    **self._artwork_opts,
                     CONF_CREATE_COMBINED: create_combined,
                     CONF_COMBINED_NAME: combined_name,
                     CONF_COMBINED_SOURCES: _combined_slots_to_sources(user_input),
                     CONF_COMBINED_AUDIO_SOURCES: list(user_input.get(CONF_COMBINED_AUDIO_SOURCES) or []),
+                    CONF_AUTO_PRIORITY: bool(user_input.get(CONF_AUTO_PRIORITY, True)),
                 }
-                return self.async_create_entry(title="", data=data)
+                return self.async_create_entry(title="", data=new_options)
 
-        current_providers: list[str] = self.config_entry.options.get(
-            CONF_PROVIDERS,
-            self.config_entry.data.get(CONF_PROVIDERS, list(DEFAULT_PROVIDERS)),
+        return self.async_show_form(
+            step_id="combined",
+            data_schema=_step3_schema(opts, self._step1_opts.get(CONF_CATEGORY, opts.get(CONF_CATEGORY, CATEGORY_AUTO))),
+            errors=errors,
         )
-        artwork_width: int = self.config_entry.options.get(
-            CONF_ARTWORK_WIDTH,
-            self.config_entry.data.get(
-                CONF_ARTWORK_WIDTH,
-                self.config_entry.data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_WIDTH),
-            ),
-        )
-        artwork_height: int = self.config_entry.options.get(
-            CONF_ARTWORK_HEIGHT,
-            self.config_entry.data.get(
-                CONF_ARTWORK_HEIGHT,
-                self.config_entry.data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_HEIGHT),
-            ),
-        )
-        create_combined: bool = self.config_entry.options.get(
-            CONF_CREATE_COMBINED,
-            self.config_entry.data.get(CONF_CREATE_COMBINED, False),
-        )
-        combined_name: str = self.config_entry.options.get(
-            CONF_COMBINED_NAME,
-            self.config_entry.data.get(CONF_COMBINED_NAME, ""),
-        )
-        combined_sources: list[str] = self.config_entry.options.get(
-            CONF_COMBINED_SOURCES,
-            self.config_entry.data.get(CONF_COMBINED_SOURCES, []),
-        )
-        combined_audio_sources: list[str] = self.config_entry.options.get(
-            CONF_COMBINED_AUDIO_SOURCES,
-            self.config_entry.data.get(CONF_COMBINED_AUDIO_SOURCES, []),
-        )
-
-        schema = _slot_schema(
-            source_entity_id=None,
-            slots=_providers_to_slots(current_providers),
-            artwork_width=artwork_width,
-            artwork_height=artwork_height,
-            include_source=False,
-            create_combined=create_combined,
-            combined_name=combined_name,
-            combined_sources=combined_sources,
-            combined_audio_sources=combined_audio_sources,
-        )
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

@@ -20,6 +20,7 @@ from .const import (
     CONF_ARTWORK_SIZE,
     CONF_ARTWORK_WIDTH,
     CONF_CATEGORY,
+    CONF_DELEGATE_ENTITY,
     CONF_FALLBACK_MODE,
     CONF_SOURCE_ENTITY_ID,
     DEFAULT_ARTWORK_HEIGHT,
@@ -28,7 +29,7 @@ from .const import (
     DOMAIN,
     FALLBACK_PLACEHOLDER,
     PLATFORMS,
-    RATIO_1_1,
+    RATIO_1_1_2000,
 )
 from .providers import get_providers, resolve_cover
 from .providers.query_builder import build_query
@@ -331,7 +332,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         src = new_data.get(CONF_SOURCE_ENTITY_ID, "")
         derived_name = src.split(".", 1)[-1].replace("_", " ").title() if src else ""
         new_options.setdefault("display_name", derived_name)
-        new_options.setdefault("ratio", RATIO_1_1)
+        new_options.setdefault("ratio", RATIO_1_1_2000)
         new_options.setdefault("auto_priority", True)
 
         # Remove legacy flat provider list (providers are now derived from category)
@@ -341,6 +342,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         current_version = 3
         _LOGGER.info(
             "Migrated config entry %s: v2 → v3 (added category/display_name/ratio/fallback_mode)",
+            entry.entry_id,
+        )
+
+    if current_version < 4:
+        old_ratio = str(new_options.get("ratio", new_data.get("ratio", "")))
+        ratio_map = {"1:1": "1:1_2000", "4:3": "4:3_2000", "16:9": "16:9_2000"}
+        if old_ratio in ratio_map:
+            new_options["ratio"] = ratio_map[old_ratio]
+        new_options.setdefault("ratio", "1:1_2000")
+        new_options.setdefault(CONF_DELEGATE_ENTITY, None)
+
+        current_version = 4
+        _LOGGER.info(
+            "Migrated config entry %s: v3.0 → v3.1 (delegate_entity + ratio presets)",
             entry.entry_id,
         )
 

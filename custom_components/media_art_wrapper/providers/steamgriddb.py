@@ -197,7 +197,7 @@ class SteamGridDBProvider(ArtworkProvider):
 
         # Determine dimensions for grid filtering
         is_portrait = query.artwork_height >= query.artwork_width
-        dimensions = "600x900" if is_portrait else "920x430"
+        dimensions = "600x900" if is_portrait else "600x338"
 
         grids_url = SGDB_GRIDS_URL.format(game_id=game_id)
         try:

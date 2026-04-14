@@ -7,12 +7,14 @@
         "data": {
           "source_entity_id": "Media player",
           "display_name": "Display name",
-          "category": "Content category"
+          "category": "Content category",
+          "delegate_entity": "Steuerungs-Delegat (optional)"
         },
         "data_description": {
           "source_entity_id": "The media player entity whose artwork will be resolved.",
           "display_name": "Friendly name shown in Home Assistant. Leave blank to use the player name.",
-          "category": "Determines which artwork providers are used. Choose Auto to try all providers."
+          "category": "Determines which artwork providers are used. Choose Auto to try all providers.",
+          "delegate_entity": "Falls gesetzt, werden Browse-, Queue- und Steuerungsbefehle an diese Entität weitergeleitet statt an den gewählten Media Player."
         }
       },
       "artwork": {
@@ -60,14 +62,18 @@
           "combined_source_6": "Source 6",
           "combined_source_7": "Source 7",
           "combined_source_8": "Source 8 (lowest priority)",
-          "combined_audio_sources": "Audio control targets (optional)"
+          "combined_audio_sources": "Audio control targets (optional)",
+          "combined_auto_order_preview": "Auto-Reihenfolge (Vorschau)",
+          "combined_no_maw_info": "Hinweis"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
           "combined_name": "Used to name the entities: media_player.NAME and image.NAME_cover. Use lowercase letters and underscores only.",
           "auto_priority": "When enabled, sources are automatically reordered by category: Gaming first, then Streaming, TV, Music, Auto.",
           "combined_source_1": "Priority ordered: PLAYING or BUFFERING beats PAUSED or IDLE, which beats ON. Lower slot number wins within the same tier.",
-          "combined_audio_sources": "Optional. Volume, shuffle, repeat and playback commands are routed to the active audio source instead of the display source."
+          "combined_audio_sources": "Optional. Volume, shuffle, repeat and playback commands are routed to the active audio source instead of the display source.",
+          "combined_auto_order_preview": "Nur Vorschau: wird automatisch aus den gewählten MAW-Quellen abgeleitet.",
+          "combined_no_maw_info": "Keine MAW-Instanzen gefunden. Bitte zuerst einzelne Player konfigurieren."
         }
       }
     },
@@ -82,11 +88,13 @@
         "description": "Update the category and display name for this media player.",
         "data": {
           "display_name": "Display name",
-          "category": "Content category"
+          "category": "Content category",
+          "delegate_entity": "Steuerungs-Delegat (optional)"
         },
         "data_description": {
           "display_name": "Friendly name shown in Home Assistant.",
-          "category": "Determines which artwork providers are used. Choose Auto to try all providers."
+          "category": "Determines which artwork providers are used. Choose Auto to try all providers.",
+          "delegate_entity": "Falls gesetzt, werden Browse-, Queue- und Steuerungsbefehle an diese Entität weitergeleitet statt an den gewählten Media Player."
         }
       },
       "artwork": {
@@ -134,14 +142,18 @@
           "combined_source_6": "Source 6",
           "combined_source_7": "Source 7",
           "combined_source_8": "Source 8 (lowest priority)",
-          "combined_audio_sources": "Audio control targets (optional)"
+          "combined_audio_sources": "Audio control targets (optional)",
+          "combined_auto_order_preview": "Auto-Reihenfolge (Vorschau)",
+          "combined_no_maw_info": "Hinweis"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
           "combined_name": "Used to name the entities: media_player.NAME and image.NAME_cover. Use lowercase letters and underscores only.",
           "auto_priority": "When enabled, sources are automatically reordered by category: Gaming first, then Streaming, TV, Music, Auto.",
           "combined_source_1": "Priority ordered: PLAYING or BUFFERING beats PAUSED or IDLE, which beats ON. Lower slot number wins within the same tier.",
-          "combined_audio_sources": "Optional. Volume, shuffle, repeat and playback commands are routed to the active audio source instead of the display source."
+          "combined_audio_sources": "Optional. Volume, shuffle, repeat and playback commands are routed to the active audio source instead of the display source.",
+          "combined_auto_order_preview": "Nur Vorschau: wird automatisch aus den gewählten MAW-Quellen abgeleitet.",
+          "combined_no_maw_info": "Keine MAW-Instanzen gefunden. Bitte zuerst einzelne Player konfigurieren."
         }
       }
     }

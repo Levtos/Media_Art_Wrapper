@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.0 (2026-04-14)
+- Config/UI: Conditional Felder im Config- und Options-Flow werden jetzt wirklich ausgeblendet, bis die jeweilige Bedingung erfüllt ist (Artwork + Combined Step).
+- Neue Artwork-Presets mit 2K/3K-Defaults und Provider-Abrufe auf höhere Auflösungen angepasst (iTunes/TMDb/IGDB/SteamGridDB).
+- Neues optionales `delegate_entity` pro MAW-Instanz: Steuerungs-/Browse-Aufrufe können an einen Delegat-Player weitergeleitet werden, Metadaten/Cover bleiben vom Original-Player.
+- Combined Player nutzt MAW-Wrapper als auswählbare Quellen und kann Audio-Targets aus Delegaten automatisch vorbelegen.
+- Migration v3.0 → v3.1 ergänzt (`delegate_entity`, neue Ratio-Werte).
+- Platzhalter-Service-Logos unter `icons/services/` hinzugefügt, inkl. README mit erwarteten Dateinamen/Quellen.
+
 ## 1.0.1 (2026-02-25)
 - Lizenzdatei `LICENSE` (MIT) hinzugefügt
 - GitHub `CODEOWNERS` hinzugefügt (`@Levtos`)

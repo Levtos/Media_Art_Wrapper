@@ -128,8 +128,8 @@ class IGDBProvider(ArtworkProvider):
         if not isinstance(image_id, str):
             return None
 
-        # t_cover_big = 264×374; t_original for highest quality
-        size = "t_cover_big_2x" if max(query.artwork_width, query.artwork_height) > 400 else "t_cover_big"
+        # Request highest available quality for preset >=2K
+        size = "t_original" if max(query.artwork_width, query.artwork_height) >= 1600 else "t_cover_big_2x"
         url = f"https://images.igdb.com/igdb/image/upload/{size}/{image_id}.jpg"
 
         try:

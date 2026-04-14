@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="No Cover Found">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5b4ea6"/>
+      <stop offset="100%" stop-color="#253a80"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+  <circle cx="300" cy="360" r="86" fill="#ffd86b"/>
+  <circle cx="270" cy="338" r="9" fill="#3b2d2d"/>
+  <circle cx="330" cy="338" r="9" fill="#3b2d2d"/>
+  <path d="M255 392 Q300 360 345 392" fill="none" stroke="#3b2d2d" stroke-width="10" stroke-linecap="round"/>
+  <text x="300" y="170" text-anchor="middle" fill="#ffffff" font-size="62" font-family="Arial, sans-serif" font-weight="700">No Cover</text>
+  <text x="300" y="240" text-anchor="middle" fill="#ffffff" font-size="62" font-family="Arial, sans-serif" font-weight="700">Found</text>
+</svg>

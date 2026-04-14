@@ -69,7 +69,7 @@ class TMDbProvider(ArtworkProvider):
             return None
 
         # Pick image size closest to requested dimensions
-        size = "w500" if max(query.artwork_width, query.artwork_height) <= 600 else "original"
+        size = "original" if max(query.artwork_width, query.artwork_height) >= 2000 else "w500"
         url = f"https://image.tmdb.org/t/p/{size}{poster_path}"
         try:
             async with session.get(url, timeout=10) as resp:

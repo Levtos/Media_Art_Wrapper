@@ -6,26 +6,139 @@ DOMAIN = "media_art_wrapper"
 
 PLATFORMS: list[Platform] = [Platform.IMAGE, Platform.CAMERA, Platform.MEDIA_PLAYER, Platform.SENSOR]
 
+# ---------------------------------------------------------------------------
+# Source / display
+# ---------------------------------------------------------------------------
 CONF_SOURCE_ENTITY_ID = "source_entity_id"
-CONF_PROVIDERS = "providers"
-CONF_ARTWORK_SIZE = "artwork_size"
+CONF_DISPLAY_NAME = "display_name"
+
+# ---------------------------------------------------------------------------
+# Category
+# ---------------------------------------------------------------------------
+CONF_CATEGORY = "category"
+
+CATEGORY_MUSIC = "music"
+CATEGORY_STREAMING = "streaming"
+CATEGORY_GAMING = "gaming"
+CATEGORY_TV = "tv"
+CATEGORY_AUTO = "auto"
+
+CATEGORIES = [CATEGORY_MUSIC, CATEGORY_STREAMING, CATEGORY_GAMING, CATEGORY_TV, CATEGORY_AUTO]
+
+# Category sort priority for Combined Player auto-priority
+# Lower number = higher priority (gaming beats streaming beats tv beats music)
+CATEGORY_SORT_PRIORITY: dict[str, int] = {
+    CATEGORY_GAMING: 1,
+    CATEGORY_STREAMING: 2,
+    CATEGORY_TV: 3,
+    CATEGORY_MUSIC: 4,
+    CATEGORY_AUTO: 5,
+}
+
+# ---------------------------------------------------------------------------
+# Artwork ratio & dimensions
+# ---------------------------------------------------------------------------
+CONF_RATIO = "ratio"
 CONF_ARTWORK_WIDTH = "artwork_width"
 CONF_ARTWORK_HEIGHT = "artwork_height"
 
-PROVIDER_ITUNES = "itunes"
-PROVIDER_MUSICBRAINZ = "musicbrainz"
-PROVIDER_TV = "tv"
-PROVIDER_BATTLENET = "battlenet"
-PROVIDER_STEAM = "steam"
+RATIO_1_1 = "1:1"
+RATIO_4_3 = "4:3"
+RATIO_16_9 = "16:9"
+RATIO_CUSTOM = "custom"
 
-DEFAULT_PROVIDERS: list[str] = [PROVIDER_ITUNES]
-DEFAULT_ARTWORK_SIZE = 600
+# (width, height) per preset key
+RATIO_DIMENSIONS: dict[str, tuple[int, int]] = {
+    RATIO_1_1: (600, 600),
+    RATIO_4_3: (800, 600),
+    RATIO_16_9: (960, 540),
+}
+
+# Legacy keys retained for migration only
+CONF_ARTWORK_SIZE = "artwork_size"
+
 DEFAULT_ARTWORK_WIDTH = 600
 DEFAULT_ARTWORK_HEIGHT = 600
+DEFAULT_ARTWORK_SIZE = 600
 
-# Combined Media Player feature
+# ---------------------------------------------------------------------------
+# Fallback artwork
+# ---------------------------------------------------------------------------
+CONF_FALLBACK_MODE = "fallback_mode"
+CONF_FALLBACK_CUSTOM_URL = "fallback_custom_url"
+
+FALLBACK_PLACEHOLDER = "placeholder"
+FALLBACK_SERVICE_LOGO = "service_logo"
+FALLBACK_CUSTOM_URL_MODE = "custom_url"
+
+# ---------------------------------------------------------------------------
+# Providers
+# ---------------------------------------------------------------------------
+CONF_PROVIDERS = "providers"
+
+PROVIDER_ITUNES = "itunes"
+PROVIDER_MUSICBRAINZ = "musicbrainz"
+PROVIDER_TMDB = "tmdb"
+PROVIDER_IGDB = "igdb"
+PROVIDER_STEAMGRIDDB = "steamgriddb"
+PROVIDER_STEAM = "steam"          # no-key fallback (Steam Store search)
+PROVIDER_TVMAZE = "tvmaze"
+PROVIDER_FANART = "fanart"
+# Legacy provider keys (kept for migration compatibility)
+PROVIDER_TV = "tv"
+PROVIDER_BATTLENET = "battlenet"
+
+DEFAULT_PROVIDERS: list[str] = [PROVIDER_ITUNES]
+
+# Category → ordered provider list (providers without required keys are skipped)
+CATEGORY_PROVIDERS: dict[str, list[str]] = {
+    CATEGORY_MUSIC: [PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ],
+    CATEGORY_STREAMING: [PROVIDER_TMDB],
+    CATEGORY_GAMING: [PROVIDER_IGDB, PROVIDER_STEAMGRIDDB, PROVIDER_STEAM],
+    CATEGORY_TV: [PROVIDER_TVMAZE, PROVIDER_FANART],
+    CATEGORY_AUTO: [
+        PROVIDER_ITUNES,
+        PROVIDER_MUSICBRAINZ,
+        PROVIDER_TMDB,
+        PROVIDER_IGDB,
+        PROVIDER_STEAMGRIDDB,
+        PROVIDER_STEAM,
+        PROVIDER_TVMAZE,
+        PROVIDER_FANART,
+    ],
+}
+
+# Providers available for manual ordering (music + auto categories only)
+ORDERABLE_PROVIDERS: dict[str, list[str]] = {
+    CATEGORY_MUSIC: [PROVIDER_ITUNES, PROVIDER_MUSICBRAINZ],
+    CATEGORY_AUTO: [
+        PROVIDER_ITUNES,
+        PROVIDER_MUSICBRAINZ,
+        PROVIDER_TMDB,
+        PROVIDER_IGDB,
+        PROVIDER_STEAMGRIDDB,
+        PROVIDER_STEAM,
+        PROVIDER_TVMAZE,
+        PROVIDER_FANART,
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# API keys (always stored in entry.options, never in entry.data)
+# ---------------------------------------------------------------------------
+CONF_TMDB_API_KEY = "tmdb_api_key"
+CONF_IGDB_CLIENT_ID = "igdb_client_id"
+CONF_IGDB_CLIENT_SECRET = "igdb_client_secret"
+CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
+CONF_FANART_API_KEY = "fanart_api_key"
+CONF_XMLTV_URL = "xmltv_url"  # stored but not yet used (EPG v3.1)
+
+# ---------------------------------------------------------------------------
+# Combined Player
+# ---------------------------------------------------------------------------
 CONF_CREATE_COMBINED = "create_combined"
 CONF_COMBINED_NAME = "combined_name"
 CONF_COMBINED_SOURCES = "combined_sources"
 CONF_COMBINED_AUDIO_SOURCES = "combined_audio_sources"
+CONF_AUTO_PRIORITY = "auto_priority"
 COMBINED_NUM_SOURCE_SLOTS = 8

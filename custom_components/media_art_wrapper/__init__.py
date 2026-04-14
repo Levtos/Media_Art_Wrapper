@@ -15,26 +15,27 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CATEGORY_AUTO,
     CONF_ARTWORK_HEIGHT,
     CONF_ARTWORK_SIZE,
     CONF_ARTWORK_WIDTH,
-    CONF_PROVIDERS,
+    CONF_CATEGORY,
+    CONF_FALLBACK_MODE,
     CONF_SOURCE_ENTITY_ID,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_SIZE,
     DEFAULT_ARTWORK_WIDTH,
-    DEFAULT_PROVIDERS,
     DOMAIN,
+    FALLBACK_PLACEHOLDER,
     PLATFORMS,
+    RATIO_1_1,
 )
-from .cover_resolver import async_resolve_cover
-from .models import TrackQuery
+from .providers import get_providers, resolve_cover
+from .providers.query_builder import build_query
 
 _LOGGER = logging.getLogger(__name__)
 
-# Detects station-ident metadata: no artist AND title contains " - " which
-# radio stations use for "STATIONNAME - SLOGAN" (e.g. "WDR 2 - Für den Westen").
-# Real track titles without an artist field rarely contain " - ".
+# Station-ident heuristic: no artist AND title contains " - " (e.g. "WDR 2 - Für den Westen")
 _RE_STATION_IDENT = re.compile(r".+\s+-\s+.+")
 
 _RE_CLEAN = re.compile(
@@ -64,9 +65,10 @@ class CoverData:
     content_type: str
     image: bytes | None
     last_updated: datetime | None
+    category: str = CATEGORY_AUTO
 
 
-def _raw_text(value: str | None) -> str | None:
+def _raw_text(value: Any) -> str | None:
     """Normalize whitespace only – keeps remix/edit/mix annotations intact."""
     if not isinstance(value, str):
         return None
@@ -76,7 +78,7 @@ def _raw_text(value: str | None) -> str | None:
     return normalized or None
 
 
-def _clean_text(value: str | None) -> str | None:
+def _clean_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     cleaned = re.sub(r"\s{2,}", " ", _RE_CLEAN.sub("", value)).strip()
@@ -104,7 +106,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.entry = entry
         self.source_entity_id: str = entry.data[CONF_SOURCE_ENTITY_ID]
-        self.providers: list[str] = []
+        self.category: str = CATEGORY_AUTO
         self.artwork_size: int = DEFAULT_ARTWORK_SIZE
         self.artwork_width: int = DEFAULT_ARTWORK_WIDTH
         self.artwork_height: int = DEFAULT_ARTWORK_HEIGHT
@@ -115,6 +117,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
 
         self._update_from_entry(entry)
 
+        self._state_attrs: dict[str, Any] = {}
         self._artist: str | None = None
         self._title: str | None = None
         self._raw_title: str | None = None
@@ -132,16 +135,18 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         )
 
     def _update_from_entry(self, entry: ConfigEntry) -> None:
-        providers = entry.options.get(CONF_PROVIDERS, entry.data.get(CONF_PROVIDERS, DEFAULT_PROVIDERS))
-        self.providers = list(providers) if isinstance(providers, list) else list(DEFAULT_PROVIDERS)
+        opts = entry.options
+        data = entry.data
 
-        artwork_width = entry.options.get(
+        self.category = str(opts.get(CONF_CATEGORY, data.get(CONF_CATEGORY, CATEGORY_AUTO)))
+
+        artwork_width = opts.get(
             CONF_ARTWORK_WIDTH,
-            entry.data.get(CONF_ARTWORK_WIDTH, entry.data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_WIDTH)),
+            data.get(CONF_ARTWORK_WIDTH, data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_WIDTH)),
         )
-        artwork_height = entry.options.get(
+        artwork_height = opts.get(
             CONF_ARTWORK_HEIGHT,
-            entry.data.get(CONF_ARTWORK_HEIGHT, entry.data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_HEIGHT)),
+            data.get(CONF_ARTWORK_HEIGHT, data.get(CONF_ARTWORK_SIZE, DEFAULT_ARTWORK_HEIGHT)),
         )
 
         self.artwork_width = int(artwork_width)
@@ -186,25 +191,22 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         if state is None or state.state in {"unavailable", "unknown"}:
             return False
 
-        attrs = state.attributes or {}
+        attrs = dict(state.attributes or {})
         raw_title = _raw_text(attrs.get("media_title"))
         artist = _clean_text(attrs.get("media_artist"))
         title = _clean_text(attrs.get("media_title"))
         album = _clean_text(attrs.get("media_album_name"))
 
-        # Heuristic: no artist AND title looks like "STATIONNAME - SLOGAN"
-        # (e.g. "WDR 2 - Für den Westen"). Treat as no usable track info so
-        # the last successful cover is kept instead of triggering a new search.
+        # Heuristic: no artist AND title looks like "STATIONNAME - SLOGAN".
         if not artist and title and _RE_STATION_IDENT.match(title):
             _LOGGER.debug("Skipping station-ident title %r (no artist)", title)
             return False
 
-        # Use raw title in the key so "Song (Remix)" and "Song" are treated as
-        # distinct tracks and each triggers its own cover fetch.
         new_key = _build_track_key(artist, raw_title, album)
         if new_key == self._track_key:
             return False
 
+        self._state_attrs = attrs
         self._artist = artist
         self._title = title
         self._raw_title = raw_title
@@ -237,6 +239,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             content_type="image/jpeg",
             image=None,
             last_updated=None,
+            category=self.category,
         )
 
     async def _async_update_data(self) -> CoverData:
@@ -251,22 +254,14 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                 return self._fallback_data(track_key=None, artist=artist, title=title, album=album)
 
             try:
-                raw_title = self._raw_title
-                query = TrackQuery(
-                    artist=artist,
-                    title=title,
-                    album=album,
+                query = build_query(
+                    state_attrs=self._state_attrs,
+                    category=self.category,
                     artwork_width=self.artwork_width,
                     artwork_height=self.artwork_height,
-                    # Pass raw title so the resolver can try it first (e.g. "Song (Remix)")
-                    # before falling back to the cleaned title ("Song").
-                    original_title=raw_title if raw_title != title else None,
                 )
-                resolved = await async_resolve_cover(
-                    session=self._session,
-                    query=query,
-                    providers=self.providers,
-                )
+                providers = get_providers(self.category, self.entry.options)
+                resolved = await resolve_cover(self._session, query, providers)
             except Exception as err:  # noqa: BLE001
                 self._last_error = str(err)
                 _LOGGER.warning(
@@ -288,11 +283,12 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                 artist=artist,
                 title=title,
                 album=album,
-                provider=resolved.provider,
-                artwork_url=resolved.artwork_url,
+                provider=resolved.provider_name,
+                artwork_url=resolved.image_url,
                 content_type=resolved.content_type,
                 image=resolved.image,
                 last_updated=dt_util.utcnow(),
+                category=self.category,
             )
             self._last_cover = data
             return data
@@ -301,13 +297,12 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entries to the current schema version.
 
-    Each block handles exactly one version step so the chain is fully additive:
-    future migrations just append another ``if current_version < N`` block.
-
     Version history
     ---------------
     1  – initial release; artwork stored as a single ``artwork_size`` value.
     2  – ``artwork_size`` replaced by separate ``artwork_width`` / ``artwork_height``.
+    3  – Added category, display_name, ratio, fallback_mode, auto_priority;
+         providers/ subpackage replaces old flat provider list.
     """
     current_version: int = entry.version
     _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)
@@ -316,9 +311,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     new_options = dict(entry.options)
 
     if current_version < 2:
-        # Split the legacy unified ``artwork_size`` field into the two separate
-        # dimension fields.  Applies to both ``data`` and ``options`` so that
-        # entries whose options were written by the old flow are also cleaned up.
         for store in (new_data, new_options):
             if CONF_ARTWORK_SIZE in store:
                 size = int(store.pop(CONF_ARTWORK_SIZE))
@@ -327,6 +319,28 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         current_version = 2
         _LOGGER.info(
             "Migrated config entry %s: v1 → v2 (artwork_size → artwork_width/artwork_height)",
+            entry.entry_id,
+        )
+
+    if current_version < 3:
+        # Add new v3 fields with sensible defaults
+        new_options.setdefault(CONF_CATEGORY, CATEGORY_AUTO)
+        new_options.setdefault(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER)
+
+        # Derive display_name from source entity_id if not present
+        src = new_data.get(CONF_SOURCE_ENTITY_ID, "")
+        derived_name = src.split(".", 1)[-1].replace("_", " ").title() if src else ""
+        new_options.setdefault("display_name", derived_name)
+        new_options.setdefault("ratio", RATIO_1_1)
+        new_options.setdefault("auto_priority", True)
+
+        # Remove legacy flat provider list (providers are now derived from category)
+        new_options.pop("providers", None)
+        new_data.pop("providers", None)
+
+        current_version = 3
+        _LOGGER.info(
+            "Migrated config entry %s: v2 → v3 (added category/display_name/ratio/fallback_mode)",
             entry.entry_id,
         )
 

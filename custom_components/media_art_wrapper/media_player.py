@@ -11,6 +11,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import CoverCoordinator, CoverData
 from .const import (
+    CATEGORY_SORT_PRIORITY,
+    CONF_AUTO_PRIORITY,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_NAME,
     CONF_COMBINED_SOURCES,
@@ -35,23 +37,47 @@ def _safe_state(raw: str) -> MediaPlayerState | None:
         return None
 
 
-def _get_combined_config(entry: ConfigEntry) -> tuple[bool, str, list[str], list[str]]:
-    """Return (create_combined, name, sources, audio_sources) from entry options/data."""
+def _get_combined_config(entry: ConfigEntry) -> tuple[bool, str, list[str], list[str], bool]:
+    """Return (create_combined, name, sources, audio_sources, auto_priority) from entry options/data."""
     opts = entry.options
     data = entry.data
     create = bool(opts.get(CONF_CREATE_COMBINED, data.get(CONF_CREATE_COMBINED, False)))
     name = str(opts.get(CONF_COMBINED_NAME, data.get(CONF_COMBINED_NAME, ""))).strip()
     sources: list[str] = list(opts.get(CONF_COMBINED_SOURCES, data.get(CONF_COMBINED_SOURCES, [])))
     audio: list[str] = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, data.get(CONF_COMBINED_AUDIO_SOURCES, [])))
-    return create, name, sources, audio
+    auto_priority = bool(opts.get(CONF_AUTO_PRIORITY, data.get(CONF_AUTO_PRIORITY, True)))
+    return create, name, sources, audio, auto_priority
+
+
+def _sort_sources_by_category(
+    sources: list[str],
+    hass: HomeAssistant,
+) -> list[str]:
+    """Sort combined sources by their MAW coordinator's category priority.
+
+    Lower CATEGORY_SORT_PRIORITY number = higher priority in the sorted list.
+    Sources without a MAW coordinator (non-MAW media players) keep their
+    original relative order at the end with priority=999.
+    """
+    # Build a map of source entity_id → category priority from active MAW coordinators
+    cat_priority: dict[str, int] = {}
+    for coordinator in hass.data.get(DOMAIN, {}).values():
+        if isinstance(coordinator, CoverCoordinator):
+            priority = CATEGORY_SORT_PRIORITY.get(coordinator.category, 999)
+            cat_priority[coordinator.source_entity_id] = priority
+
+    # Stable sort: sources without a coordinator keep their original order at end
+    return sorted(sources, key=lambda sid: cat_priority.get(sid, 999))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
     coordinator: CoverCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[MediaPlayerEntity] = [MediaCoverArtUniversalPlayer(coordinator, entry)]
 
-    create_combined, combined_name, combined_sources, combined_audio = _get_combined_config(entry)
+    create_combined, combined_name, combined_sources, combined_audio, auto_priority = _get_combined_config(entry)
     if create_combined and combined_name and combined_sources:
+        if auto_priority:
+            combined_sources = _sort_sources_by_category(combined_sources, hass)
         entities.append(CombinedMediaPlayer(hass, entry, combined_sources, combined_audio, combined_name))
 
     async_add_entities(entities, update_before_add=False)

@@ -258,8 +258,12 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
         default_audio = [control_map[s] for s in chosen_sources if control_map.get(s)]
     fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=default_audio)] = _MULTI_ENTITY_SEL
 
-    return vol.Schema(fields)
+    default_audio = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, []))
+    if not default_audio and chosen_sources:
+        default_audio = [control_map[s] for s in chosen_sources if control_map.get(s)]
+    fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=default_audio)] = _MULTI_ENTITY_SEL
 
+    return vol.Schema(fields)
 
 class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 5

@@ -106,11 +106,13 @@
         "description": "Update the category and display name for this media player.",
         "data": {
           "display_name": "Display name",
-          "category": "Content category"
+          "category": "Content category",
+          "delegate_entity": "Steuerungs-Delegat (optional)"
         },
         "data_description": {
           "display_name": "Friendly name shown in Home Assistant.",
-          "category": "Determines which artwork providers are used. Choose Auto to try all providers."
+          "category": "Determines which artwork providers are used. Choose Auto to try all providers.",
+          "delegate_entity": "Falls gesetzt, werden Browse-, Queue- und Steuerungsbefehle an diese Entität weitergeleitet statt an den gewählten Media Player."
         }
       },
       "artwork": {

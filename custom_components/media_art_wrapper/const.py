@@ -11,6 +11,7 @@ PLATFORMS: list[Platform] = [Platform.IMAGE, Platform.CAMERA, Platform.MEDIA_PLA
 # ---------------------------------------------------------------------------
 CONF_SOURCE_ENTITY_ID = "source_entity_id"
 CONF_DISPLAY_NAME = "display_name"
+CONF_DELEGATE_ENTITY = "delegate_entity"  # legacy key (migrated away in v3.1.1)
 
 # ---------------------------------------------------------------------------
 # Category
@@ -42,24 +43,27 @@ CONF_RATIO = "ratio"
 CONF_ARTWORK_WIDTH = "artwork_width"
 CONF_ARTWORK_HEIGHT = "artwork_height"
 
-RATIO_1_1 = "1:1"
-RATIO_4_3 = "4:3"
-RATIO_16_9 = "16:9"
+RATIO_1_1_2000 = "1:1_2000"
+RATIO_1_1_3000 = "1:1_3000"
+RATIO_4_3_1600 = "4:3_1600"
+RATIO_16_9_1920 = "16:9_1920"
 RATIO_CUSTOM = "custom"
 
 # (width, height) per preset key
 RATIO_DIMENSIONS: dict[str, tuple[int, int]] = {
-    RATIO_1_1: (600, 600),
-    RATIO_4_3: (800, 600),
-    RATIO_16_9: (960, 540),
+    RATIO_1_1_2000: (2000, 2000),
+    RATIO_1_1_3000: (3000, 3000),
+    RATIO_4_3_1600: (1600, 1200),
+    RATIO_16_9_1920: (1920, 1080),
 }
 
 # Legacy keys retained for migration only
 CONF_ARTWORK_SIZE = "artwork_size"
 
-DEFAULT_ARTWORK_WIDTH = 600
-DEFAULT_ARTWORK_HEIGHT = 600
-DEFAULT_ARTWORK_SIZE = 600
+DEFAULT_ARTWORK_WIDTH = 2000
+DEFAULT_ARTWORK_HEIGHT = 2000
+DEFAULT_ARTWORK_SIZE = 2000
+DEFAULT_RATIO = RATIO_1_1_2000
 
 # ---------------------------------------------------------------------------
 # Fallback artwork
@@ -132,13 +136,16 @@ CONF_IGDB_CLIENT_SECRET = "igdb_client_secret"
 CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # stored but not yet used (EPG v3.1)
+CONF_EPG_SENSOR = "epg_sensor"
 
 # ---------------------------------------------------------------------------
 # Combined Player
 # ---------------------------------------------------------------------------
+CONF_CREATE_WRAPPER = "create_wrapper"
 CONF_CREATE_COMBINED = "create_combined"
 CONF_COMBINED_NAME = "combined_name"
 CONF_COMBINED_SOURCES = "combined_sources"
 CONF_COMBINED_AUDIO_SOURCES = "combined_audio_sources"
 CONF_AUTO_PRIORITY = "auto_priority"
 COMBINED_NUM_SOURCE_SLOTS = 8
+CONF_COMBINED_DELEGATE_PREFIX = "combined_delegate_"

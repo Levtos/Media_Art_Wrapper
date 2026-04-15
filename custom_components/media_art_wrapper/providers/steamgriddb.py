@@ -195,16 +195,12 @@ class SteamGridDBProvider(ArtworkProvider):
         if not isinstance(game_id, int):
             return None
 
-        # Determine dimensions for grid filtering
-        is_portrait = query.artwork_height >= query.artwork_width
-        dimensions = "600x900" if is_portrait else "920x430"
-
         grids_url = SGDB_GRIDS_URL.format(game_id=game_id)
         try:
             async with session.get(
                 grids_url,
                 headers=headers,
-                params={"dimensions": dimensions, "limit": "1"},
+                params={"limit": "1"},
                 timeout=10,
             ) as resp:
                 resp.raise_for_status()

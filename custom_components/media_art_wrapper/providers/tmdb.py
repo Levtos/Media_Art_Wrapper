@@ -25,26 +25,29 @@ class TMDbProvider(ArtworkProvider):
         return bool(self._api_key)
 
     async def fetch(self, session, query: ArtworkQuery) -> ArtworkResult | None:
-        title = (query.title or "").strip()
-        if not title:
-            # For episodes try series title as fallback
-            title = (query.series_title or "").strip()
-        if not title:
+        candidates = [c for c in (query.title_candidates or []) if isinstance(c, str) and c.strip()]
+        if not candidates:
+            title = (query.title or "").strip() or (query.series_title or "").strip()
+            candidates = [title] if title else []
+        if not candidates:
             return None
 
-        try:
-            async with session.get(
-                TMDB_SEARCH_URL,
-                params={"api_key": self._api_key, "query": title, "page": 1},
-                timeout=10,
-            ) as resp:
-                resp.raise_for_status()
-                payload: dict[str, Any] = await resp.json(**_JSON_KW)
-        except Exception as err:
-            _LOGGER.debug("TMDb search failed for %r: %s", title, err)
-            return None
-
-        results = payload.get("results") if isinstance(payload, dict) else None
+        results = None
+        for candidate in candidates:
+            try:
+                async with session.get(
+                    TMDB_SEARCH_URL,
+                    params={"api_key": self._api_key, "query": candidate, "page": 1},
+                    timeout=10,
+                ) as resp:
+                    resp.raise_for_status()
+                    payload: dict[str, Any] = await resp.json(**_JSON_KW)
+            except Exception as err:
+                _LOGGER.debug("TMDb search failed for %r: %s", candidate, err)
+                continue
+            results = payload.get("results") if isinstance(payload, dict) else None
+            if isinstance(results, list) and results:
+                break
         if not isinstance(results, list) or not results:
             return None
 
@@ -69,7 +72,7 @@ class TMDbProvider(ArtworkProvider):
             return None
 
         # Pick image size closest to requested dimensions
-        size = "w500" if max(query.artwork_width, query.artwork_height) <= 600 else "original"
+        size = "original"
         url = f"https://image.tmdb.org/t/p/{size}{poster_path}"
         try:
             async with session.get(url, timeout=10) as resp:

@@ -18,6 +18,7 @@ from .const import (
     CONF_COMBINED_NAME,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
+    CONF_CREATE_WRAPPER,
     CONF_FALLBACK_CUSTOM_URL,
     CONF_FALLBACK_MODE,
     DOMAIN,
@@ -29,8 +30,11 @@ from .media_player import _TIER1, _TIER2, _TIER3, _safe_state
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
-    coordinator: CoverCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[ImageEntity] = [MediaCoverArtImage(coordinator, entry)]
+    create_wrapper = bool(entry.options.get(CONF_CREATE_WRAPPER, entry.data.get(CONF_CREATE_WRAPPER, True)))
+    entities: list[ImageEntity] = []
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if create_wrapper and isinstance(coordinator, CoverCoordinator):
+        entities.append(MediaCoverArtImage(coordinator, entry))
 
     opts = entry.options
     data = entry.data

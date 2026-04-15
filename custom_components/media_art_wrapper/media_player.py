@@ -6,6 +6,7 @@ from homeassistant.components.media_player import BrowseMedia, MediaPlayerEntity
 from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, State, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -15,8 +16,10 @@ from .const import (
     CONF_AUTO_PRIORITY,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_NAME,
+    CONF_CREATE_WRAPPER,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
+    CONF_SOURCE_ENTITY_ID,
     DOMAIN,
 )
 from .helpers import FALLBACK_IMAGE, source_name
@@ -70,15 +73,60 @@ def _sort_sources_by_category(
     return sorted(sources, key=lambda sid: cat_priority.get(sid, 999))
 
 
+def _entry_delegate_entity(entry: ConfigEntry) -> str | None:
+    return None
+
+
+def _resolve_combined_sources(hass: HomeAssistant, wrapper_entities: list[str]) -> tuple[list[str], list[str]]:
+    """Resolve wrapper entity ids into display (original) and control (delegate) ids."""
+    display_sources: list[str] = []
+    control_sources: list[str] = []
+    entries = hass.config_entries.async_entries(DOMAIN)
+    by_wrapper: dict[str, ConfigEntry] = {}
+    registry = er.async_get(hass)
+    for e in entries:
+        for entity_entry in er.async_entries_for_config_entry(registry, e.entry_id):
+            if entity_entry.domain == "media_player" and entity_entry.unique_id.endswith("_cover_player") and entity_entry.entity_id:
+                by_wrapper[entity_entry.entity_id] = e
+                break
+
+    for wrapper in wrapper_entities:
+        entry = by_wrapper.get(wrapper)
+        if entry is None:
+            continue
+        original = str(entry.data.get(CONF_SOURCE_ENTITY_ID, "")).strip()
+        if not original:
+            continue
+        delegate = _entry_delegate_entity(entry)
+        display_sources.append(original)
+        control_sources.append(delegate or original)
+
+    return list(dict.fromkeys(display_sources)), list(dict.fromkeys(control_sources))
+
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
-    coordinator: CoverCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[MediaPlayerEntity] = [MediaCoverArtUniversalPlayer(coordinator, entry)]
+    create_wrapper = bool(entry.options.get(CONF_CREATE_WRAPPER, entry.data.get(CONF_CREATE_WRAPPER, True)))
+    entities: list[MediaPlayerEntity] = []
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if create_wrapper and isinstance(coordinator, CoverCoordinator):
+        entities.append(MediaCoverArtUniversalPlayer(coordinator, entry))
 
     create_combined, combined_name, combined_sources, combined_audio, auto_priority = _get_combined_config(entry)
     if create_combined and combined_name and combined_sources:
+        display_sources, auto_audio_sources = _resolve_combined_sources(hass, combined_sources)
         if auto_priority:
-            combined_sources = _sort_sources_by_category(combined_sources, hass)
-        entities.append(CombinedMediaPlayer(hass, entry, combined_sources, combined_audio, combined_name))
+            display_sources = _sort_sources_by_category(display_sources, hass)
+        control_sources = combined_audio or auto_audio_sources
+        slot_delegate_map: dict[str, str] = {}
+        for idx, wrapper in enumerate(combined_sources, start=1):
+            delegate = entry.options.get(f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}")
+            if not isinstance(delegate, str) or not delegate.strip():
+                continue
+            resolved_display, _ = _resolve_combined_sources(hass, [wrapper])
+            if resolved_display:
+                slot_delegate_map[resolved_display[0]] = delegate.strip()
+        entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name, slot_delegate_map))
 
     async_add_entities(entities, update_before_add=False)
 
@@ -102,6 +150,7 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
             pass
         self._attr_unique_id = f"{entry.entry_id}_cover_player"
         self._attr_name = f"{source_name(coordinator.source_entity_id)} Cover"
+        self._delegate_entity = _entry_delegate_entity(entry)
         self._unsub_source_state = None
 
     @property
@@ -111,6 +160,14 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
     @property
     def source_state(self) -> State | None:
         return self.hass.states.get(self.source_entity_id)
+
+    @property
+    def control_entity_id(self) -> str:
+        return self._delegate_entity or self.source_entity_id
+
+    @property
+    def control_state(self) -> State | None:
+        return self.hass.states.get(self.control_entity_id)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -147,13 +204,15 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
 
     @property
     def supported_features(self) -> MediaPlayerEntityFeature:
-        src = self.source_state
-        if src is None:
-            return MediaPlayerEntityFeature(0)
-        try:
-            return MediaPlayerEntityFeature(int(src.attributes.get("supported_features", 0)))
-        except (TypeError, ValueError):
-            return MediaPlayerEntityFeature(0)
+        features = MediaPlayerEntityFeature(0)
+        for state in (self.source_state, self.control_state):
+            if state is None:
+                continue
+            try:
+                features |= MediaPlayerEntityFeature(int(state.attributes.get("supported_features", 0)))
+            except (TypeError, ValueError):
+                continue
+        return features
 
     def _source_attr(self, key: str, default: Any = None) -> Any:
         src = self.source_state
@@ -187,19 +246,19 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
 
     @property
     def volume_level(self) -> float | None:
-        return self._source_attr("volume_level")
+        return self.control_state.attributes.get("volume_level") if self.control_state else None
 
     @property
     def is_volume_muted(self) -> bool | None:
-        return self._source_attr("is_volume_muted")
+        return self.control_state.attributes.get("is_volume_muted") if self.control_state else None
 
     @property
     def source(self) -> str | None:
-        return self._source_attr("source")
+        return self.control_state.attributes.get("source") if self.control_state else None
 
     @property
     def source_list(self) -> list[str] | None:
-        return self._source_attr("source_list")
+        return self.control_state.attributes.get("source_list") if self.control_state else None
 
     @property
     def sound_mode(self) -> str | None:
@@ -211,11 +270,11 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
 
     @property
     def shuffle(self) -> bool | None:
-        return self._source_attr("shuffle")
+        return self.control_state.attributes.get("shuffle") if self.control_state else None
 
     @property
     def repeat(self) -> str | None:
-        return self._source_attr("repeat")
+        return self.control_state.attributes.get("repeat") if self.control_state else None
 
     @property
     def media_image_hash(self) -> str | None:
@@ -271,7 +330,7 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
         await self.hass.services.async_call(
             "media_player",
             service,
-            {"entity_id": self.source_entity_id, **service_data},
+            {"entity_id": self.control_entity_id, **service_data},
             blocking=True,
         )
 
@@ -345,13 +404,13 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
         """Forward browse requests to the source media player entity."""
         entity_comp = self.hass.data.get("entity_components", {}).get(MP_DOMAIN)
         if entity_comp is not None:
-            source_entity = entity_comp.get_entity(self.source_entity_id)
+            source_entity = entity_comp.get_entity(self.control_entity_id)
             if source_entity is not None:
                 return await source_entity.async_browse_media(
                     media_content_type, media_content_id
                 )
         from homeassistant.components.media_player.errors import BrowseError
-        raise BrowseError(f"Source entity {self.source_entity_id} is not available for browsing")
+        raise BrowseError(f"Source entity {self.control_entity_id} is not available for browsing")
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +440,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         sources: list[str],
         audio_sources: list[str],
         name: str,
+        slot_delegate_map: dict[str, str] | None = None,
     ) -> None:
         self.hass = hass
         self._entry = entry
@@ -388,6 +448,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         self._audio_sources = list(audio_sources)
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_combined_player"
+        self._slot_delegate_map = dict(slot_delegate_map or {})
         self._unsub: Any | None = None
 
     # ------------------------------------------------------------------
@@ -440,7 +501,10 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return None
 
     def _active_audio_entity_id(self) -> str | None:
-        """Return the entity_id of the highest-priority active audio source."""
+        """Return delegate control target for active source when configured."""
+        active_display = self._active_entity_id()
+        if active_display:
+            return self._slot_delegate_map.get(active_display, active_display)
         for tier in (_TIER1, _TIER2, _TIER3):
             for sid in self._audio_sources:
                 state = self.hass.states.get(sid)
@@ -579,7 +643,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             except (TypeError, ValueError):
                 features = MediaPlayerEntityFeature(0)
         # BROWSE_MEDIA: enabled if ANY configured source (display OR audio) supports it
-        for sid in self._sources + self._audio_sources:
+        for sid in self._sources + self._audio_sources + list(self._slot_delegate_map.values()):
             state = self.hass.states.get(sid)
             if state is None:
                 continue
@@ -757,7 +821,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         audio_id = self._active_audio_entity_id()
         if audio_id and _supports_browse(audio_id):
             return audio_id
-        for sid in self._sources + self._audio_sources:
+        for sid in self._sources + self._audio_sources + list(self._slot_delegate_map.values()):
             if _supports_browse(sid):
                 return sid
         return None

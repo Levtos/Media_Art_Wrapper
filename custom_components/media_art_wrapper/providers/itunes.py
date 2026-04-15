@@ -136,7 +136,8 @@ class ITunesProvider(ArtworkProvider):
         if not isinstance(artwork, str):
             return None
 
-        target = max(100, int(max(query.artwork_width, query.artwork_height)))
+        requested = int(max(query.artwork_width, query.artwork_height))
+        target = 3000 if requested >= 3000 else (2000 if requested >= 2000 else max(100, requested))
         url = _upscale(artwork, target)
         try:
             async with session.get(url, timeout=10) as r:
@@ -178,7 +179,8 @@ class ITunesProvider(ArtworkProvider):
             artwork = item.get("artworkUrl100") or item.get("artworkUrl60") or item.get("artworkUrl30")
             if not isinstance(artwork, str):
                 continue
-            target = max(100, int(max(query.artwork_width, query.artwork_height)))
+            requested = int(max(query.artwork_width, query.artwork_height))
+            target = 3000 if requested >= 3000 else (2000 if requested >= 2000 else max(100, requested))
             url = re.sub(
                 r"/(\d{2,4})x(\d{2,4})bb\.(jpg|png)$",
                 f"/{target}x{target}bb.jpg",

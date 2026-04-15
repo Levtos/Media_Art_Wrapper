@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers.event import async_track_state_change_event
@@ -20,9 +21,11 @@ from .const import (
     CONF_ARTWORK_SIZE,
     CONF_ARTWORK_WIDTH,
     CONF_CATEGORY,
-    CONF_DELEGATE_ENTITY,
+    CONF_CREATE_WRAPPER,
     CONF_FALLBACK_MODE,
     CONF_SOURCE_ENTITY_ID,
+    CONF_EPG_SENSOR,
+    COMBINED_NUM_SOURCE_SLOTS,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_SIZE,
     DEFAULT_ARTWORK_WIDTH,
@@ -32,6 +35,7 @@ from .const import (
     RATIO_1_1_2000,
 )
 from .providers import get_providers, resolve_cover
+from .providers.epg_base import HaEpgProvider
 from .providers.query_builder import build_query
 
 _LOGGER = logging.getLogger(__name__)
@@ -126,6 +130,8 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self._track_key: str | None = None
         self._last_cover: CoverData | None = None
         self._last_error: str | None = None
+        self._epg_sensor: str | None = None
+        self._epg_channel_icon: str | None = None
 
         super().__init__(
             hass=hass,
@@ -153,6 +159,8 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self.artwork_width = int(artwork_width)
         self.artwork_height = int(artwork_height)
         self.artwork_size = max(self.artwork_width, self.artwork_height)
+        epg = opts.get(CONF_EPG_SENSOR, data.get(CONF_EPG_SENSOR))
+        self._epg_sensor = str(epg).strip() if isinstance(epg, str) and epg else None
 
     async def async_start(self) -> None:
         """Start listening to media_player state changes and do initial refresh."""
@@ -255,8 +263,22 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                 return self._fallback_data(track_key=None, artist=artist, title=title, album=album)
 
             try:
+                state_attrs = dict(self._state_attrs)
+                self._epg_channel_icon = None
+                if self.category in {"tv", "auto"} and self._epg_sensor:
+                    try:
+                        epg = await HaEpgProvider().get_current_program(self.hass, self._epg_sensor)
+                    except Exception:
+                        epg = None
+                    if epg and epg.title:
+                        state_attrs["media_title"] = epg.title
+                        if epg.sub_title:
+                            state_attrs["media_subtitle"] = epg.sub_title
+                        if epg.channel_icon:
+                            self._epg_channel_icon = epg.channel_icon
+
                 query = build_query(
-                    state_attrs=self._state_attrs,
+                    state_attrs=state_attrs,
                     category=self.category,
                     artwork_width=self.artwork_width,
                     artwork_height=self.artwork_height,
@@ -275,7 +297,10 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                 return self._fallback_data(track_key=track_key, artist=artist, title=title, album=album)
 
             if resolved is None:
-                return self._fallback_data(track_key=track_key, artist=artist, title=title, album=album)
+                fallback = self._fallback_data(track_key=track_key, artist=artist, title=title, album=album)
+                if self._epg_channel_icon:
+                    fallback.artwork_url = self._epg_channel_icon
+                return fallback
 
             self._last_error = None
             data = CoverData(
@@ -351,13 +376,27 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if old_ratio in ratio_map:
             new_options["ratio"] = ratio_map[old_ratio]
         new_options.setdefault("ratio", "1:1_2000")
-        new_options.setdefault(CONF_DELEGATE_ENTITY, None)
+        new_options.setdefault(CONF_CREATE_WRAPPER, True)
 
         current_version = 4
         _LOGGER.info(
             "Migrated config entry %s: v3.0 → v3.1 (delegate_entity + ratio presets)",
             entry.entry_id,
         )
+
+    if current_version < 5:
+        # v3.1.1 cleanup
+        new_options.pop("delegate_entity", None)
+        new_data.pop("delegate_entity", None)
+        ratio_map = {"1:1": "1:1_2000", "4:3": "4:3_1600", "16:9": "16:9_1920", "4:3_2000": "4:3_1600", "16:9_2000": "16:9_1920"}
+        ratio = str(new_options.get("ratio", ""))
+        if ratio in ratio_map:
+            new_options["ratio"] = ratio_map[ratio]
+        new_options.setdefault("ratio", "1:1_2000")
+        new_options.setdefault(CONF_EPG_SENSOR, None)
+        for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1):
+            new_options.setdefault(f"combined_delegate_{i}", None)
+        current_version = 5
 
     hass.config_entries.async_update_entry(
         entry, data=new_data, options=new_options, version=current_version
@@ -371,19 +410,28 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    coordinator = CoverCoordinator(hass, entry)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
+    create_wrapper = bool(entry.options.get(CONF_CREATE_WRAPPER, entry.data.get(CONF_CREATE_WRAPPER, True)))
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    await coordinator.async_start()
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if create_wrapper:
+        coordinator = CoverCoordinator(hass, entry)
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+        await coordinator.async_start()
+        platforms = PLATFORMS
+    else:
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = None
+        platforms = [Platform.MEDIA_PLAYER]
+
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    create_wrapper = bool(entry.options.get(CONF_CREATE_WRAPPER, entry.data.get(CONF_CREATE_WRAPPER, True)))
+    platforms = PLATFORMS if create_wrapper else [Platform.MEDIA_PLAYER]
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unload_ok:
-        coordinator: CoverCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.async_stop()
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if isinstance(coordinator, CoverCoordinator):
+            await coordinator.async_stop()
     return unload_ok

@@ -16,9 +16,9 @@ from .const import (
     CONF_AUTO_PRIORITY,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_NAME,
+    CONF_CREATE_WRAPPER,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
-    CONF_DELEGATE_ENTITY,
     CONF_SOURCE_ENTITY_ID,
     DOMAIN,
 )
@@ -74,8 +74,7 @@ def _sort_sources_by_category(
 
 
 def _entry_delegate_entity(entry: ConfigEntry) -> str | None:
-    delegate = entry.options.get(CONF_DELEGATE_ENTITY, entry.data.get(CONF_DELEGATE_ENTITY))
-    return str(delegate).strip() if isinstance(delegate, str) and delegate else None
+    return None
 
 
 def _resolve_combined_sources(hass: HomeAssistant, wrapper_entities: list[str]) -> tuple[list[str], list[str]]:
@@ -107,8 +106,11 @@ def _resolve_combined_sources(hass: HomeAssistant, wrapper_entities: list[str]) 
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
-    coordinator: CoverCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[MediaPlayerEntity] = [MediaCoverArtUniversalPlayer(coordinator, entry)]
+    create_wrapper = bool(entry.options.get(CONF_CREATE_WRAPPER, entry.data.get(CONF_CREATE_WRAPPER, True)))
+    entities: list[MediaPlayerEntity] = []
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if create_wrapper and isinstance(coordinator, CoverCoordinator):
+        entities.append(MediaCoverArtUniversalPlayer(coordinator, entry))
 
     create_combined, combined_name, combined_sources, combined_audio, auto_priority = _get_combined_config(entry)
     if create_combined and combined_name and combined_sources:
@@ -116,7 +118,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         if auto_priority:
             display_sources = _sort_sources_by_category(display_sources, hass)
         control_sources = combined_audio or auto_audio_sources
-        entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name))
+        slot_delegate_map: dict[str, str] = {}
+        for idx, wrapper in enumerate(combined_sources, start=1):
+            delegate = entry.options.get(f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}")
+            if not isinstance(delegate, str) or not delegate.strip():
+                continue
+            resolved_display, _ = _resolve_combined_sources(hass, [wrapper])
+            if resolved_display:
+                slot_delegate_map[resolved_display[0]] = delegate.strip()
+        entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name, slot_delegate_map))
 
     async_add_entities(entities, update_before_add=False)
 
@@ -430,6 +440,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         sources: list[str],
         audio_sources: list[str],
         name: str,
+        slot_delegate_map: dict[str, str] | None = None,
     ) -> None:
         self.hass = hass
         self._entry = entry
@@ -437,6 +448,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         self._audio_sources = list(audio_sources)
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_combined_player"
+        self._slot_delegate_map = dict(slot_delegate_map or {})
         self._unsub: Any | None = None
 
     # ------------------------------------------------------------------
@@ -489,7 +501,10 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return None
 
     def _active_audio_entity_id(self) -> str | None:
-        """Return the entity_id of the highest-priority active audio source."""
+        """Return delegate control target for active source when configured."""
+        active_display = self._active_entity_id()
+        if active_display:
+            return self._slot_delegate_map.get(active_display, active_display)
         for tier in (_TIER1, _TIER2, _TIER3):
             for sid in self._audio_sources:
                 state = self.hass.states.get(sid)
@@ -628,7 +643,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
             except (TypeError, ValueError):
                 features = MediaPlayerEntityFeature(0)
         # BROWSE_MEDIA: enabled if ANY configured source (display OR audio) supports it
-        for sid in self._sources + self._audio_sources:
+        for sid in self._sources + self._audio_sources + list(self._slot_delegate_map.values()):
             state = self.hass.states.get(sid)
             if state is None:
                 continue
@@ -806,7 +821,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         audio_id = self._active_audio_entity_id()
         if audio_id and _supports_browse(audio_id):
             return audio_id
-        for sid in self._sources + self._audio_sources:
+        for sid in self._sources + self._audio_sources + list(self._slot_delegate_map.values()):
             if _supports_browse(sid):
                 return sid
         return None

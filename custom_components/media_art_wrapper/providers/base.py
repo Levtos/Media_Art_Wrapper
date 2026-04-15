@@ -21,6 +21,8 @@ class ArtworkQuery:
     original_title: str | None = None
     # Series title for episode content
     series_title: str | None = None
+    title_candidates: list[str] = field(default_factory=list)
+    subtitle_hint: str = ""
 
 
 @dataclass(slots=True)

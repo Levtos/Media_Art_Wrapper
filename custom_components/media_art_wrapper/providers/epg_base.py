@@ -1,60 +1,51 @@
-"""EPG (Electronic Programme Guide) provider base — stub for future XMLTV support."""
+"""EPG provider helpers."""
 from __future__ import annotations
 
-import logging
-from abc import ABC, abstractmethod
-from typing import Any
+from dataclasses import dataclass
+from datetime import datetime
 
-_LOGGER = logging.getLogger(__name__)
-
-
-class EPGProvider(ABC):
-    """Abstract base class for EPG data sources.
-
-    An EPG provider answers the question: "What is currently airing on
-    channel X?", returning structured programme metadata.
-    """
-
-    @abstractmethod
-    async def get_current_program(
-        self,
-        session,
-        channel_name: str,
-    ) -> dict[str, Any] | None:
-        """Return metadata for the programme currently airing on *channel_name*.
-
-        Returns a dict with keys:
-            title     – episode/programme title (may be empty string)
-            show_name – series/show name
-            image_url – URL of the best available image, or None
-        or None if no current programme can be found.
-        """
+from homeassistant.core import HomeAssistant
 
 
-class XmltvEpgProvider(EPGProvider):
-    """EPG provider backed by a remote XMLTV feed.
+@dataclass(slots=True)
+class EPGProgram:
+    title: str
+    sub_title: str
+    description: str
+    channel_name: str
+    channel_icon: str | None = None
 
-    TODO (v3.1): implement XMLTV parsing and channel/programme matching.
-    This stub always returns None so that the TV provider falls through
-    to its other artwork sources (TVMaze schedule, Wikipedia, etc.).
-    """
 
-    def __init__(self, xmltv_url: str) -> None:
-        self._xmltv_url = (xmltv_url or "").strip()
+class HaEpgProvider:
+    """Reads current program from HA-EPG sensor attributes."""
 
-    def is_available(self) -> bool:
-        return bool(self._xmltv_url)
+    async def get_current_program(self, hass: HomeAssistant, sensor_entity_id: str) -> EPGProgram | None:
+        state = hass.states.get(sensor_entity_id)
+        if not state:
+            return None
 
-    async def get_current_program(
-        self,
-        session,
-        channel_name: str,
-    ) -> dict[str, Any] | None:
-        # TODO (v3.1): fetch and parse XMLTV feed, match channel_name,
-        # return currently-airing programme metadata.
-        _LOGGER.debug(
-            "XmltvEpgProvider: XMLTV support not yet implemented (url=%r, channel=%r)",
-            self._xmltv_url,
-            channel_name,
+        today = state.attributes.get("today", {})
+        if not isinstance(today, dict):
+            return None
+        now = datetime.now().strftime("%H:%M")
+
+        current = None
+        for slot_time, program in sorted(today.items()):
+            if not isinstance(program, dict):
+                continue
+            slot_start = str(program.get("start", slot_time))
+            slot_end = str(program.get("end", "23:59"))
+            if slot_start <= now < slot_end:
+                current = program
+                break
+
+        if not current:
+            return None
+
+        return EPGProgram(
+            title=str(current.get("title", "")),
+            sub_title=str(current.get("sub_title", "")),
+            description=str(current.get("desc", "")),
+            channel_name=str(state.attributes.get("channel_display_name", "")),
+            channel_icon=state.attributes.get("channel_icon"),
         )
-        return None

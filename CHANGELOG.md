@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.1 (2026-04-14)
+- OptionsFlow-Routing und bedingte Feldanzeige bereinigt (kein doppelter Artwork-Step).
+- Delegate auf Wrapper-Ebene entfernt; stattdessen pro Combined-Quelle optional steuerbare Entität (`combined_delegate_1..8`).
+- TV/Auto: optionaler `epg_sensor` integriert, inkl. Programmtitel-Override und Channel-Icon-Fallback.
+- Query-Builder erweitert um Umlaut-Varianten (`title_candidates`) und `subtitle_hint` für TV-Suche.
+- Ratio-Mapping/Migration auf neue Presets (`4:3_1600`, `16:9_1920`) aktualisiert.
+
 ## 3.1.0 (2026-04-14)
 - Config/UI: Conditional Felder im Config- und Options-Flow werden jetzt wirklich ausgeblendet, bis die jeweilige Bedingung erfüllt ist (Artwork + Combined Step).
 - Neue Artwork-Presets mit 2K/3K-Defaults und Provider-Abrufe auf höhere Auflösungen angepasst (iTunes/TMDb/IGDB/SteamGridDB).

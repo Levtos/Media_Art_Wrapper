@@ -129,7 +129,7 @@ class IGDBProvider(ArtworkProvider):
             return None
 
         # Request highest available quality for preset >=2K
-        size = "t_original" if max(query.artwork_width, query.artwork_height) >= 1600 else "t_cover_big_2x"
+        size = "t_1080p" if max(query.artwork_width, query.artwork_height) >= 1600 else "t_cover_big"
         url = f"https://images.igdb.com/igdb/image/upload/{size}/{image_id}.jpg"
 
         try:

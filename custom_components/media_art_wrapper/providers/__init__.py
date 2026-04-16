@@ -29,7 +29,6 @@ from ..const import (
     CONF_TMDB_API_KEY,
 )
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
-from .battlenet import BattleNetProvider
 from .fanart import FanartTvProvider
 from .igdb import IGDBProvider
 from .itunes import ITunesProvider
@@ -73,7 +72,6 @@ def get_providers(
         ),
         "steamgriddb": SteamGridDBProvider(options.get(CONF_STEAMGRIDDB_API_KEY, "")),
         "steam": SteamProvider(),
-        "battlenet": BattleNetProvider(),
         "tvmaze": TVMazeProvider(),
         "fanart": FanartTvProvider(options.get(CONF_FANART_API_KEY, "")),
     }

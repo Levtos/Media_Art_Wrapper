@@ -406,6 +406,18 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             new_options.setdefault(f"combined_delegate_{i}", None)
         current_version = 5
 
+    if current_version < 6:
+        # v3.2: remove delegate_entity legacy key; add channel_icon/channel_name defaults
+        new_options.pop("delegate_entity", None)
+        new_data.pop("delegate_entity", None)
+        new_options.setdefault("channel_icon", "")
+        new_options.setdefault("channel_name", "")
+        current_version = 6
+        _LOGGER.info(
+            "Migrated config entry %s: v5 → v6 (remove delegate_entity, add channel fields)",
+            entry.entry_id,
+        )
+
     hass.config_entries.async_update_entry(
         entry, data=new_data, options=new_options, version=current_version
     )

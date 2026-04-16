@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.2.0 (2026-04-16)
+
+### Bug Fixes
+- OptionsFlow: Fixed double-step bug — artwork and combined steps were shown twice on first submission. Schema now only rebuilds when field visibility actually changes (custom dimensions / custom URL toggle).
+- `_fallback_data`: Stale cover from a previous track is no longer shown when the new track's cover lookup fails. Returns empty CoverData instead, allowing the configured fallback mode (service logo / placeholder) to apply.
+- Combined Player: Removed duplicate `combined_audio_sources` schema field that caused unpredictable form behaviour.
+
+### New Features
+- EPG: Channel classification — public broadcasters (ARD, ZDF, WDR, arte, ÖR regional) trigger full TVMaze + TMDb episode lookups. Private/commercial channels return channel_icon directly without API calls.
+- EPG: `fix_epg_encoding()` corrects common EPG encoding artifacts (SS→ß, English "and"→"und").
+- EPG: `EPG_TITLE_CORRECTIONS` dictionary covers ARD, ZDF and WDR programme title normalisation.
+- TVMaze: When `subtitle_hint` is set, uses `episodesbydate` API for episode-specific cover images.
+- TMDb: Added `tv` category support; when `subtitle_hint` is set, searches last 2 seasons for episode still_path.
+- Config Flow: Delegate fields (`combined_delegate_1..8`) now always visible for filled source slots.
+- `ArtworkQuery`: Added `channel_icon` and `channel_name` fields for channel-aware providers.
+
+### Housekeeping
+- Removed `xmltv_url` from UI (kept in storage as reserved field for future EPG v3.2).
+- Fixed German strings in `translations/en.json`.
+- Config entry version bumped to 6 (migration: remove legacy `delegate_entity`, add `channel_icon`/`channel_name` defaults).
+- Manifest version: 3.2.0.
+
 ## 3.1.1 (2026-04-14)
 - OptionsFlow-Routing und bedingte Feldanzeige bereinigt (kein doppelter Artwork-Step).
 - Delegate auf Wrapper-Ebene entfernt; stattdessen pro Combined-Quelle optional steuerbare Entität (`combined_delegate_1..8`).

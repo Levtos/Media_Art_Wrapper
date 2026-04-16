@@ -12,6 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 TVMAZE_SEARCH_URL = "https://api.tvmaze.com/search/shows"
 TVMAZE_SCHEDULE_URL = "https://api.tvmaze.com/schedule"
+TVMAZE_EPISODES_BY_DATE_URL = "https://api.tvmaze.com/shows/{show_id}/episodesbydate"
 WIKIPEDIA_API_URL = "https://{lang}.wikipedia.org/w/api.php"
 _COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 
@@ -181,6 +182,69 @@ async def _tvmaze_show_image(session, term: str) -> str | None:
         return None
     url = image_data.get("original") or image_data.get("medium")
     return str(url) if isinstance(url, str) and url else None
+
+
+# ---------------------------------------------------------------------------
+# TVMaze episodesbydate helpers
+# ---------------------------------------------------------------------------
+
+async def _tvmaze_episode_by_date(
+    session, show_id: int, today: str
+) -> dict[str, Any] | None:
+    """Return the first episode airing on *today* for *show_id*."""
+    try:
+        async with session.get(
+            TVMAZE_EPISODES_BY_DATE_URL.format(show_id=show_id),
+            params={"date": today},
+            timeout=10,
+        ) as resp:
+            if resp.status == 404:
+                return None
+            resp.raise_for_status()
+            episodes = await resp.json(**_JSON_KW)
+    except Exception as err:
+        _LOGGER.debug("TVMaze episodesbydate failed for show %s: %s", show_id, err)
+        return None
+
+    if not isinstance(episodes, list) or not episodes:
+        return None
+    return episodes[0] if isinstance(episodes[0], dict) else None
+
+
+async def _tvmaze_show_id(session, term: str) -> tuple[int | None, str | None]:
+    """Return (show_id, show_image_url) for the best-matching TVMaze show."""
+    try:
+        async with session.get(
+            TVMAZE_SEARCH_URL, params={"q": term}, timeout=10
+        ) as resp:
+            resp.raise_for_status()
+            results = await resp.json(**_JSON_KW)
+    except Exception as err:
+        _LOGGER.debug("TVMaze show search failed for %r: %s", term, err)
+        return None, None
+
+    if not isinstance(results, list) or not results:
+        return None, None
+
+    best = results[0]
+    if not isinstance(best, dict):
+        return None, None
+    show = best.get("show")
+    if not isinstance(show, dict):
+        return None, None
+
+    show_name = str(show.get("name") or "")
+    if not _names_overlap(term, show_name):
+        return None, None
+
+    show_id = show.get("id")
+    image_data = show.get("image")
+    show_img = None
+    if isinstance(image_data, dict):
+        url = image_data.get("original") or image_data.get("medium")
+        show_img = str(url) if isinstance(url, str) and url else None
+
+    return (int(show_id) if isinstance(show_id, int) else None), show_img
 
 
 # ---------------------------------------------------------------------------
@@ -409,11 +473,33 @@ class TVMazeProvider(ArtworkProvider):
                         "EPG title redirect: channel=%r → search=%r", title, effective_search
                     )
 
-        # 2. TVMaze show search -----------------------------------------------
+        # 2. TVMaze show search (+ episodesbydate when subtitle_hint available) -
         if not artwork_url:
-            artwork_url = await _tvmaze_show_image(session, effective_search)
-            if artwork_url:
-                provider_name = "tv_tvmaze"
+            subtitle = (query.subtitle_hint or "").strip()
+            if subtitle:
+                # Try to get episode-specific image via episodesbydate
+                from datetime import date as _date
+                today_str = _date.today().isoformat()
+                show_id, show_img = await _tvmaze_show_id(session, effective_search)
+                if show_id is not None:
+                    ep = await _tvmaze_episode_by_date(session, show_id, today_str)
+                    if ep:
+                        ep_img = _episode_image_url(ep)
+                        if ep_img:
+                            artwork_url = ep_img
+                            provider_name = "tv_tvmaze_episode"
+                            _LOGGER.debug(
+                                "TVMaze episodesbydate hit: show_id=%s today=%s img=%s",
+                                show_id, today_str, ep_img,
+                            )
+                    if not artwork_url and show_img:
+                        # Episode found but no image → use show poster
+                        artwork_url = show_img
+                        provider_name = "tv_tvmaze"
+            if not artwork_url:
+                artwork_url = await _tvmaze_show_image(session, effective_search)
+                if artwork_url:
+                    provider_name = "tv_tvmaze"
 
         # 3. Channel logo lookup ---------------------------------------------
         if not artwork_url and title:

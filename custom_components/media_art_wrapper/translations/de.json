@@ -29,7 +29,6 @@
           "igdb_client_secret": "IGDB Client Secret (Gaming)",
           "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
           "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
-          "xmltv_url": "XMLTV EPG-Feed URL (optional, TV)",
           "epg_sensor": "EPG-Sensor (optional)"
         },
         "data_description": {
@@ -43,7 +42,6 @@
           "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
           "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
           "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
-          "xmltv_url": "Optionaler XMLTV-EPG-Feed für erweitertes Kanal-Programm-Matching. Noch nicht implementiert (geplant für v3.1).",
           "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
         }
       },
@@ -121,7 +119,6 @@
           "igdb_client_secret": "IGDB Client Secret (Gaming)",
           "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
           "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
-          "xmltv_url": "XMLTV EPG-Feed URL (optional, TV)",
           "epg_sensor": "EPG-Sensor (optional)"
         },
         "data_description": {
@@ -135,7 +132,6 @@
           "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
           "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
           "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
-          "xmltv_url": "Optionaler XMLTV-EPG-Feed für erweitertes Kanal-Programm-Matching. Noch nicht implementiert (geplant für v3.1).",
           "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
         }
       },

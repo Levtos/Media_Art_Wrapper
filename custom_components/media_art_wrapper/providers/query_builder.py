@@ -35,6 +35,61 @@ UMLAUT_CANDIDATES = [
     ("ss", "ß"),
 ]
 
+# ---------------------------------------------------------------------------
+# EPG encoding helpers
+# ---------------------------------------------------------------------------
+
+EPG_TITLE_CORRECTIONS: dict[str, str] = {
+    # ZDF
+    "Die Kuchenschlacht":                        "Die Küchenschlacht",
+    "Bares fur Rares":                           "Bares für Rares",
+    "Volle Kanne - Service taglich":             "Volle Kanne - Service täglich",
+    "Notruf Hafenkante":                         "Notruf Hafenkante",
+    "Die Rosenheim-Cops":                        "Die Rosenheim-Cops",
+    "SOKO Donau":                                "SOKO Donau",
+    "SOKO Stuttgart":                            "SOKO Stuttgart",
+    "SOKO Leipzig":                              "SOKO Leipzig",
+    "SOKO Wismar":                               "SOKO Wismar",
+    "heute-show":                                "heute-show",
+    "ZDF Magazin Royale":                        "ZDF Magazin Royale",
+    "Bettys Diagnose":                           "Bettys Diagnose",
+    # ARD
+    "Die Pfefferkorner":                         "Die Pfefferkörner",
+    "Wer weiss denn sowas?":                     "Wer weiß denn sowas?",
+    "Wer weiSS denn sowas?":                     "Wer weiß denn sowas?",
+    "GroSSstadtrevier":                          "Großstadtrevier",
+    "Grossstadtrevier":                          "Großstadtrevier",
+    "WaPo Berlin":                               "WaPo Berlin",
+    "Praxis mit Meerblick":                      "Praxis mit Meerblick",
+    "Morden im Norden":                          "Morden im Norden",
+    # WDR
+    "Lokalzeit aus Koln":                        "Lokalzeit aus Köln",
+    "Lokalzeit aus Dusseldorf":                  "Lokalzeit aus Düsseldorf",
+    "Lokalzeit Sudwestfalen":                    "Lokalzeit Südwestfalen",
+    "Lokalzeit Munsterland":                     "Lokalzeit Münsterland",
+    "Kolner Treff":                              "Kölner Treff",
+    "Das Waisenhaus fur wilde Tiere":            "Das Waisenhaus für wilde Tiere",
+    "Giraffe, Erdmannchen und Co.":              "Giraffe, Erdmännchen & Co.",
+    "Giraffe, Erdmannchen and Co.":              "Giraffe, Erdmännchen & Co.",
+    "Feuer und Flamme":                          "Feuer und Flamme",
+    "Feuer and Flamme":                          "Feuer und Flamme",
+    "Gefragt - Gejagt":                          "Gefragt – Gejagt",
+    # Gemeinsam ÖR
+    "Report Munchen":                            "Report München",
+    "Report Mainz":                              "Report Mainz",
+}
+
+_RE_SS_BETWEEN = re.compile(r'([a-zA-Z])SS([a-zA-Z])')
+_RE_SS_END = re.compile(r'([a-zA-Z])SS\b')
+
+
+def fix_epg_encoding(title: str) -> str:
+    """Fix common EPG encoding artifacts: SS→ß and English 'and'→'und'."""
+    result = _RE_SS_BETWEEN.sub(lambda m: m.group(1) + "ß" + m.group(2), title)
+    result = _RE_SS_END.sub(lambda m: m.group(1) + "ß", result)
+    result = re.sub(r'\band\b', 'und', result)
+    return result
+
 
 def is_timestamp(value: str) -> bool:
     return bool(TIMESTAMP_PATTERN.match(value.strip()))
@@ -101,9 +156,17 @@ def build_query(state_attrs: dict[str, Any], category: str, artwork_width: int =
         if not title and app_name:
             title = app_name
         if title:
+            # Apply EPG encoding fixes before stripping channel suffix
+            title = fix_epg_encoding(title)
+            title = EPG_TITLE_CORRECTIONS.get(title, title)
             title = _strip_channel(title)
             title_candidates = umlaut_expand(title)
+            # Also include the pre-correction raw title as a fallback candidate
+            raw_stripped = _strip_channel(fix_epg_encoding(raw_title or title))
+            if raw_stripped and raw_stripped not in title_candidates:
+                title_candidates.append(raw_stripped)
         if sub_title and not is_timestamp(sub_title):
+            sub_title = fix_epg_encoding(sub_title)
             subtitle_hint = sub_title
 
     return ArtworkQuery(
@@ -119,4 +182,6 @@ def build_query(state_attrs: dict[str, Any], category: str, artwork_width: int =
         series_title=series_title,
         title_candidates=title_candidates,
         subtitle_hint=subtitle_hint,
+        channel_name=app_name or "",
+        channel_icon=str(state_attrs.get("channel_icon") or ""),
     )

@@ -29,8 +29,7 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "xmltv_url": "XMLTV EPG feed URL (optional, TV)",
-          "epg_sensor": "EPG-Sensor (optional)"
+          "epg_sensor": "EPG sensor (optional)"
         },
         "data_description": {
           "ratio": "Preset dimensions for the artwork image. Choose Custom to enter exact pixel values.",
@@ -43,8 +42,7 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "xmltv_url": "Optional XMLTV EPG feed for advanced channel programme matching. Not yet implemented (planned for v3.1).",
-          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
+          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork."
         }
       },
       "combined": {
@@ -53,7 +51,7 @@
         "data": {
           "create_combined": "Create combined player",
           "combined_name": "Combined player name",
-          "auto_priority": "Priorität automatisch aus Kategorie ableiten",
+          "auto_priority": "Auto-derive priority from category",
           "combined_source_1": "Source 1 (highest priority)",
           "combined_source_2": "Source 2",
           "combined_source_3": "Source 3",
@@ -62,30 +60,30 @@
           "combined_source_6": "Source 6",
           "combined_source_7": "Source 7",
           "combined_source_8": "Source 8 (lowest priority)",
-          "combined_audio_sources": "Audio-Steuerquellen (optional)",
-          "combined_delegate_1": "Steuerbare Entität (optional)",
-          "combined_delegate_2": "Steuerbare Entität (optional)",
-          "combined_delegate_3": "Steuerbare Entität (optional)",
-          "combined_delegate_4": "Steuerbare Entität (optional)",
-          "combined_delegate_5": "Steuerbare Entität (optional)",
-          "combined_delegate_6": "Steuerbare Entität (optional)",
-          "combined_delegate_7": "Steuerbare Entität (optional)",
-          "combined_delegate_8": "Steuerbare Entität (optional)"
+          "combined_audio_sources": "Audio control targets (optional)",
+          "combined_delegate_1": "Control entity (optional)",
+          "combined_delegate_2": "Control entity (optional)",
+          "combined_delegate_3": "Control entity (optional)",
+          "combined_delegate_4": "Control entity (optional)",
+          "combined_delegate_5": "Control entity (optional)",
+          "combined_delegate_6": "Control entity (optional)",
+          "combined_delegate_7": "Control entity (optional)",
+          "combined_delegate_8": "Control entity (optional)"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
           "combined_name": "Used to name the entities: media_player.NAME and image.NAME_cover. Use lowercase letters and underscores only.",
-          "auto_priority": "Gaming hat höchste Priorität, dann Streaming, TV, Musik, Auto.",
+          "auto_priority": "Gaming has highest priority, then Streaming, TV, Music, Auto.",
           "combined_source_1": "Priority ordered: PLAYING or BUFFERING beats PAUSED or IDLE, which beats ON. Lower slot number wins within the same tier.",
-          "combined_audio_sources": "Entitäten die Lautstärke, Shuffle und Wiedergabebefehle empfangen. Falls leer, werden Befehle an die aktive Anzeigeentität gesendet.",
-          "combined_delegate_1": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_2": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_3": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_4": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_5": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_6": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_7": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_8": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung."
+          "combined_audio_sources": "Entities that receive volume, shuffle and playback commands. If empty, commands are sent to the active display entity.",
+          "combined_delegate_1": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_2": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_3": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_4": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
         }
       }
     },
@@ -121,8 +119,7 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "xmltv_url": "XMLTV EPG feed URL (optional, TV)",
-          "epg_sensor": "EPG-Sensor (optional)"
+          "epg_sensor": "EPG sensor (optional)"
         },
         "data_description": {
           "ratio": "Preset dimensions for the artwork image. Choose Custom to enter exact pixel values.",
@@ -135,8 +132,7 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "xmltv_url": "Optional XMLTV EPG feed for advanced channel programme matching. Not yet implemented (planned for v3.1).",
-          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
+          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork."
         }
       },
       "combined": {
@@ -145,7 +141,7 @@
         "data": {
           "create_combined": "Create combined player",
           "combined_name": "Combined player name",
-          "auto_priority": "Priorität automatisch aus Kategorie ableiten",
+          "auto_priority": "Auto-derive priority from category",
           "combined_source_1": "Source 1 (highest priority)",
           "combined_source_2": "Source 2",
           "combined_source_3": "Source 3",
@@ -154,30 +150,30 @@
           "combined_source_6": "Source 6",
           "combined_source_7": "Source 7",
           "combined_source_8": "Source 8 (lowest priority)",
-          "combined_audio_sources": "Audio-Steuerquellen (optional)",
-          "combined_delegate_1": "Steuerbare Entität (optional)",
-          "combined_delegate_2": "Steuerbare Entität (optional)",
-          "combined_delegate_3": "Steuerbare Entität (optional)",
-          "combined_delegate_4": "Steuerbare Entität (optional)",
-          "combined_delegate_5": "Steuerbare Entität (optional)",
-          "combined_delegate_6": "Steuerbare Entität (optional)",
-          "combined_delegate_7": "Steuerbare Entität (optional)",
-          "combined_delegate_8": "Steuerbare Entität (optional)"
+          "combined_audio_sources": "Audio control targets (optional)",
+          "combined_delegate_1": "Control entity (optional)",
+          "combined_delegate_2": "Control entity (optional)",
+          "combined_delegate_3": "Control entity (optional)",
+          "combined_delegate_4": "Control entity (optional)",
+          "combined_delegate_5": "Control entity (optional)",
+          "combined_delegate_6": "Control entity (optional)",
+          "combined_delegate_7": "Control entity (optional)",
+          "combined_delegate_8": "Control entity (optional)"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
           "combined_name": "Used to name the entities: media_player.NAME and image.NAME_cover. Use lowercase letters and underscores only.",
-          "auto_priority": "Gaming hat höchste Priorität, dann Streaming, TV, Musik, Auto.",
+          "auto_priority": "Gaming has highest priority, then Streaming, TV, Music, Auto.",
           "combined_source_1": "Priority ordered: PLAYING or BUFFERING beats PAUSED or IDLE, which beats ON. Lower slot number wins within the same tier.",
-          "combined_audio_sources": "Entitäten die Lautstärke, Shuffle und Wiedergabebefehle empfangen. Falls leer, werden Befehle an die aktive Anzeigeentität gesendet.",
-          "combined_delegate_1": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_2": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_3": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_4": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_5": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_6": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_7": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
-          "combined_delegate_8": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung."
+          "combined_audio_sources": "Entities that receive volume, shuffle and playback commands. If empty, commands are sent to the active display entity.",
+          "combined_delegate_1": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_2": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_3": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_4": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
         }
       }
     }

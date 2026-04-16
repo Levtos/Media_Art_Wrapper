@@ -135,7 +135,7 @@ CONF_IGDB_CLIENT_ID = "igdb_client_id"
 CONF_IGDB_CLIENT_SECRET = "igdb_client_secret"
 CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
-CONF_XMLTV_URL = "xmltv_url"  # stored but not yet used (EPG v3.1)
+CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
 
 # ---------------------------------------------------------------------------
@@ -149,3 +149,22 @@ CONF_COMBINED_AUDIO_SOURCES = "combined_audio_sources"
 CONF_AUTO_PRIORITY = "auto_priority"
 COMBINED_NUM_SOURCE_SLOTS = 8
 CONF_COMBINED_DELEGATE_PREFIX = "combined_delegate_"
+
+# ---------------------------------------------------------------------------
+# EPG — Channel classification
+# ---------------------------------------------------------------------------
+# Channels in this set trigger full API lookups (TVMaze + TMDb episode search).
+# All other channels (private/commercial) receive channel_icon directly.
+EPG_FULL_LOOKUP_CHANNELS: frozenset[str] = frozenset({
+    # ARD Familie
+    "Das Erste", "ARD", "ARD HD", "Das Erste HD",
+    "tagesschau24", "ONE", "ARD alpha",
+    # ZDF Familie
+    "ZDF", "ZDF HD", "ZDFinfo", "ZDFneo", "ZDF Krimi", "3sat",
+    # WDR
+    "WDR", "WDR HD", "WDR Fernsehen",
+    # Weitere ÖR
+    "arte", "arte HD",
+    "NDR", "MDR", "SWR", "BR", "HR", "RBB",
+    "Phoenix", "KiKA",
+})

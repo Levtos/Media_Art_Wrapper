@@ -36,7 +36,6 @@ from .const import (
     CONF_SOURCE_ENTITY_ID,
     CONF_STEAMGRIDDB_API_KEY,
     CONF_TMDB_API_KEY,
-    CONF_XMLTV_URL,
     CONF_EPG_SENSOR,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_WIDTH,
@@ -52,6 +51,7 @@ from .const import (
     RATIO_CUSTOM,
     RATIO_DIMENSIONS,
 )
+
 
 _CATEGORY_OPTIONS = [
     {"value": CATEGORY_MUSIC, "label": "Music"},
@@ -207,9 +207,6 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
         fields[vol.Optional(CONF_FANART_API_KEY, default=opts.get(CONF_FANART_API_KEY, ""))] = selector.TextSelector(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
         )
-        fields[vol.Optional(CONF_XMLTV_URL, default=opts.get(CONF_XMLTV_URL, ""))] = selector.TextSelector(
-            selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
-        )
         fields[vol.Optional(CONF_EPG_SENSOR, default=opts.get(CONF_EPG_SENSOR))] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor", multiple=False)
         )
@@ -250,13 +247,7 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
             existing = slot_defaults.get(key)
             fields[vol.Optional(key, default=existing)] = slot_selector
             delegate_key = f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}"
-            if existing:
-                fields[vol.Optional(delegate_key, default=opts.get(delegate_key))] = delegate_selector
-
-    default_audio = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, []))
-    if not default_audio and chosen_sources:
-        default_audio = [control_map[s] for s in chosen_sources if control_map.get(s)]
-    fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=default_audio)] = _MULTI_ENTITY_SEL
+            fields[vol.Optional(delegate_key, default=opts.get(delegate_key))] = delegate_selector
 
     default_audio = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, []))
     if not default_audio and chosen_sources:
@@ -266,7 +257,7 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
     return vol.Schema(fields)
 
 class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 5
+    VERSION = 6
 
     def __init__(self) -> None:
         self._step1: dict[str, Any] = {}
@@ -314,7 +305,11 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         category = self._step1.get(CONF_CATEGORY, CATEGORY_AUTO)
         if user_input is not None:
             draft = {**self._step2, **user_input}
-            if user_input.get(CONF_RATIO, self._step2.get(CONF_RATIO, DEFAULT_RATIO)) != self._step2.get(CONF_RATIO) or user_input.get(CONF_FALLBACK_MODE, self._step2.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER)) != self._step2.get(CONF_FALLBACK_MODE):
+            prev_ratio = self._step2.get(CONF_RATIO, DEFAULT_RATIO)
+            prev_fallback = self._step2.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER)
+            new_ratio = user_input.get(CONF_RATIO, prev_ratio)
+            new_fallback = user_input.get(CONF_FALLBACK_MODE, prev_fallback)
+            if (new_ratio == RATIO_CUSTOM) != (prev_ratio == RATIO_CUSTOM) or (new_fallback == FALLBACK_CUSTOM_URL_MODE) != (prev_fallback == FALLBACK_CUSTOM_URL_MODE):
                 self._step2 = draft
                 return self.async_show_form(step_id="artwork", data_schema=_step2_schema(category, draft))
 
@@ -331,7 +326,6 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_IGDB_CLIENT_SECRET: draft.get(CONF_IGDB_CLIENT_SECRET, ""),
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
-                CONF_XMLTV_URL: draft.get(CONF_XMLTV_URL, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
             }
             if self._entity_kind == ENTITY_KIND_WRAPPER_COMBINED:
@@ -356,7 +350,11 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._entity_kind == ENTITY_KIND_COMBINED_ONLY:
                 create_combined = True
             auto_priority = bool(draft.get(CONF_AUTO_PRIORITY, True))
-            if create_combined and (CONF_AUTO_PRIORITY in user_input or CONF_CREATE_COMBINED in user_input):
+            prev_create = bool(self._step3.get(CONF_CREATE_COMBINED, False))
+            prev_auto = bool(self._step3.get(CONF_AUTO_PRIORITY, True))
+            new_create = bool(draft.get(CONF_CREATE_COMBINED, False))
+            new_auto = bool(draft.get(CONF_AUTO_PRIORITY, True))
+            if new_create != prev_create or (new_create and new_auto != prev_auto):
                 selected = list(draft.get(CONF_COMBINED_SOURCES, [])) or _combined_slots_to_sources(draft)
                 draft[CONF_COMBINED_AUDIO_SOURCES] = [control_map[s] for s in selected if control_map.get(s)]
                 self._step3 = draft
@@ -441,7 +439,11 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
         category = self._step1_opts.get(CONF_CATEGORY, opts.get(CONF_CATEGORY, CATEGORY_AUTO))
         if user_input is not None:
             draft = {**self._artwork_opts, **user_input}
-            if user_input.get(CONF_RATIO, self._artwork_opts.get(CONF_RATIO, opts.get(CONF_RATIO, DEFAULT_RATIO))) != self._artwork_opts.get(CONF_RATIO) or user_input.get(CONF_FALLBACK_MODE, self._artwork_opts.get(CONF_FALLBACK_MODE, opts.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER))) != self._artwork_opts.get(CONF_FALLBACK_MODE):
+            prev_ratio = self._artwork_opts.get(CONF_RATIO, opts.get(CONF_RATIO, DEFAULT_RATIO))
+            prev_fallback = self._artwork_opts.get(CONF_FALLBACK_MODE, opts.get(CONF_FALLBACK_MODE, FALLBACK_PLACEHOLDER))
+            new_ratio = user_input.get(CONF_RATIO, prev_ratio)
+            new_fallback = user_input.get(CONF_FALLBACK_MODE, prev_fallback)
+            if (new_ratio == RATIO_CUSTOM) != (prev_ratio == RATIO_CUSTOM) or (new_fallback == FALLBACK_CUSTOM_URL_MODE) != (prev_fallback == FALLBACK_CUSTOM_URL_MODE):
                 self._artwork_opts = draft
                 return self.async_show_form(step_id="artwork", data_schema=_step2_schema(category, {**opts, **draft}))
             ratio = draft.get(CONF_RATIO, opts.get(CONF_RATIO, DEFAULT_RATIO))
@@ -457,7 +459,6 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 CONF_IGDB_CLIENT_SECRET: draft.get(CONF_IGDB_CLIENT_SECRET, ""),
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
-                CONF_XMLTV_URL: draft.get(CONF_XMLTV_URL, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
             }
             return await self.async_step_combined()
@@ -475,7 +476,11 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             draft = {**merged, **user_input}
             create_combined = bool(draft.get(CONF_CREATE_COMBINED, False))
             auto_priority = bool(draft.get(CONF_AUTO_PRIORITY, True))
-            if create_combined and (CONF_AUTO_PRIORITY in user_input or CONF_CREATE_COMBINED in user_input):
+            prev_create = bool(merged.get(CONF_CREATE_COMBINED, False))
+            prev_auto = bool(merged.get(CONF_AUTO_PRIORITY, True))
+            new_create = bool(draft.get(CONF_CREATE_COMBINED, False))
+            new_auto = bool(draft.get(CONF_AUTO_PRIORITY, True))
+            if new_create != prev_create or (new_create and new_auto != prev_auto):
                 selected = list(draft.get(CONF_COMBINED_SOURCES, [])) or _combined_slots_to_sources(draft)
                 draft[CONF_COMBINED_AUDIO_SOURCES] = [control_map[s] for s in selected if control_map.get(s)]
                 self._combined_opts = draft

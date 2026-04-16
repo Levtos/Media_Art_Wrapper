@@ -23,6 +23,8 @@ class ArtworkQuery:
     series_title: str | None = None
     title_candidates: list[str] = field(default_factory=list)
     subtitle_hint: str = ""
+    channel_icon: str = ""      # og:image or EPG-supplied channel logo URL
+    channel_name: str = ""      # raw channel name from app_name / EPG
 
 
 @dataclass(slots=True)

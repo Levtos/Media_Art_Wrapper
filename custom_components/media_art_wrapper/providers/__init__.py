@@ -27,6 +27,7 @@ from ..const import (
     CONF_IGDB_CLIENT_SECRET,
     CONF_STEAMGRIDDB_API_KEY,
     CONF_TMDB_API_KEY,
+    EPG_FULL_LOOKUP_CHANNELS,
 )
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
 from .fanart import FanartTvProvider
@@ -101,6 +102,24 @@ async def resolve_cover(
     raises an unexpected exception it is logged and skipped so that the next
     provider can be tried.
     """
+    # TV: private/commercial channels → return channel_icon directly, skip API lookups
+    if query.category == "tv" and query.channel_name:
+        raw_channel = (query.channel_name or "").strip()
+        if raw_channel and raw_channel not in EPG_FULL_LOOKUP_CHANNELS:
+            if query.channel_icon:
+                _LOGGER.debug(
+                    "Private channel %r — returning channel_icon directly (no API call)",
+                    raw_channel,
+                )
+                return ArtworkResult(
+                    provider_name="channel_icon",
+                    image_url=query.channel_icon,
+                    confidence=0.5,
+                    image=None,
+                    content_type="image/jpeg",
+                )
+            _LOGGER.debug("Private channel %r has no channel_icon, falling through to providers", raw_channel)
+
     for provider in providers:
         try:
             result = await provider.fetch(session, query)

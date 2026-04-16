@@ -16,7 +16,7 @@ _JSON_KW = {"content_type": None}
 class TMDbProvider(ArtworkProvider):
     """TMDb /search/multi — movies and TV series."""
 
-    categories = frozenset({"streaming", "auto"})
+    categories = frozenset({"streaming", "tv", "auto"})
 
     def __init__(self, api_key: str) -> None:
         self._api_key = (api_key or "").strip()
@@ -67,11 +67,34 @@ class TMDbProvider(ArtworkProvider):
         if best is None:
             return None
 
+        # Episode title search: when subtitle_hint set, try episode still_path
+        subtitle = (query.subtitle_hint or "").strip()
+        if subtitle and best.get("media_type") == "tv":
+            tv_id = best.get("id")
+            episode_img = await self._find_episode_still(session, tv_id, subtitle) if tv_id else None
+            if episode_img:
+                url = episode_img
+                try:
+                    async with session.get(url, timeout=10) as resp:
+                        resp.raise_for_status()
+                        ct = resp.headers.get("Content-Type", "image/jpeg")
+                        image = await resp.read()
+                except Exception as err:
+                    _LOGGER.debug("TMDb episode still fetch failed: %s", err)
+                    image = None
+                if image:
+                    return ArtworkResult(
+                        provider_name="tmdb_episode",
+                        image_url=url,
+                        confidence=0.88,
+                        image=image,
+                        content_type=ct,
+                    )
+
         poster_path = best.get("poster_path")
         if not isinstance(poster_path, str) or not poster_path:
             return None
 
-        # Pick image size closest to requested dimensions
         size = "original"
         url = f"https://image.tmdb.org/t/p/{size}{poster_path}"
         try:
@@ -93,3 +116,50 @@ class TMDbProvider(ArtworkProvider):
             image=image,
             content_type=ct,
         )
+
+    async def _find_episode_still(
+        self, session, tv_id: int, subtitle: str
+    ) -> str | None:
+        """Search the last 2 seasons of tv_id for an episode matching subtitle."""
+        seasons_url = f"https://api.themoviedb.org/3/tv/{tv_id}"
+        try:
+            async with session.get(
+                seasons_url,
+                params={"api_key": self._api_key},
+                timeout=10,
+            ) as resp:
+                resp.raise_for_status()
+                show_data: dict[str, Any] = await resp.json(**_JSON_KW)
+        except Exception:
+            return None
+
+        seasons = show_data.get("seasons") or []
+        season_numbers = [
+            s["season_number"]
+            for s in seasons
+            if isinstance(s, dict) and s.get("season_number", 0) > 0
+        ]
+        # Check last 2 seasons only
+        for season_num in sorted(season_numbers)[-2:]:
+            season_url = f"https://api.themoviedb.org/3/tv/{tv_id}/season/{season_num}"
+            try:
+                async with session.get(
+                    season_url,
+                    params={"api_key": self._api_key},
+                    timeout=10,
+                ) as resp:
+                    resp.raise_for_status()
+                    season_data: dict[str, Any] = await resp.json(**_JSON_KW)
+            except Exception:
+                continue
+
+            for ep in season_data.get("episodes") or []:
+                if not isinstance(ep, dict):
+                    continue
+                ep_name = str(ep.get("name") or "")
+                if ep_name.lower() == subtitle.lower():
+                    still = ep.get("still_path")
+                    if isinstance(still, str) and still:
+                        return f"https://image.tmdb.org/t/p/original{still}"
+
+        return None

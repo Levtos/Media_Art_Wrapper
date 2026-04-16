@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.2.0 (2026-04-16)
+- Fix: Stale-cover bug — `_fallback_data()` no longer returns the previous cover for a different track; placeholder/service-logo fallback now works correctly.
+- Fix: Config/OptionsFlow double-step bug — artwork and combined steps no longer re-render unnecessarily when non-conditional fields change.
+- EPG: Channel classification via `EPG_FULL_LOOKUP_CHANNELS`; private/commercial channels return their `channel_icon` directly without API calls.
+- EPG: `fix_epg_encoding()` corrects SS→ß artifacts and "and"→"und" in German EPG titles; `EPG_TITLE_CORRECTIONS` dict normalises common ARD/ZDF/WDR title variants.
+- EPG: TVMaze `episodesbydate` lookup when `subtitle_hint` is present; falls back to show poster if episode has no image.
+- EPG: TMDb episode `still_path` search (last 2 seasons) when `subtitle_hint` is set on a TV result.
+- TMDb provider now also active for `tv` category.
+- UI: `xmltv_url` field removed from Config/OptionsFlow (reserved, not implemented — value preserved in storage).
+- UI: Delegate fields always visible in Combined step (no longer gated on `existing` config).
+- UI: Duplicate `combined_audio_sources` field removed from Combined step schema.
+- Translations: All German strings in `en.json` replaced with English; `xmltv_url` removed from both `en.json` and `de.json`.
+- Config entry schema bumped to VERSION 6; migration v5→v6 removes `delegate_entity`, adds `channel_icon`/`channel_name` stubs.
+
 ## 3.1.1 (2026-04-14)
 - OptionsFlow-Routing und bedingte Feldanzeige bereinigt (kein doppelter Artwork-Step).
 - Delegate auf Wrapper-Ebene entfernt; stattdessen pro Combined-Quelle optional steuerbare Entität (`combined_delegate_1..8`).

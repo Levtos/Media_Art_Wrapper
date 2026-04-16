@@ -235,7 +235,15 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         title: str | None,
         album: str | None,
     ) -> CoverData:
-        if self._last_cover is not None:
+        # Only reuse the last cover when it belongs to the *same* track (e.g. a
+        # transient network error while loading the same song/game).  If the
+        # track changed and the new lookup simply failed, return an empty
+        # CoverData so we never display artwork from a previous unrelated track.
+        if (
+            self._last_cover is not None
+            and track_key is not None
+            and self._last_cover.track_key == track_key
+        ):
             return self._last_cover
         return CoverData(
             source_entity_id=self.source_entity_id,

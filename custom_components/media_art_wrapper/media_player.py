@@ -15,10 +15,11 @@ from .const import (
     CATEGORY_SORT_PRIORITY,
     CONF_AUTO_PRIORITY,
     CONF_COMBINED_AUDIO_SOURCES,
+    CONF_COMBINED_DELEGATE_PREFIX,
     CONF_COMBINED_NAME,
-    CONF_CREATE_WRAPPER,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
+    CONF_CREATE_WRAPPER,
     CONF_SOURCE_ENTITY_ID,
     DOMAIN,
 )
@@ -113,20 +114,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(MediaCoverArtUniversalPlayer(coordinator, entry))
 
     create_combined, combined_name, combined_sources, combined_audio, auto_priority = _get_combined_config(entry)
-    if create_combined and combined_name and combined_sources:
-        display_sources, auto_audio_sources = _resolve_combined_sources(hass, combined_sources)
-        if auto_priority:
-            display_sources = _sort_sources_by_category(display_sources, hass)
-        control_sources = combined_audio or auto_audio_sources
-        slot_delegate_map: dict[str, str] = {}
-        for idx, wrapper in enumerate(combined_sources, start=1):
-            delegate = entry.options.get(f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}")
-            if not isinstance(delegate, str) or not delegate.strip():
-                continue
-            resolved_display, _ = _resolve_combined_sources(hass, [wrapper])
-            if resolved_display:
-                slot_delegate_map[resolved_display[0]] = delegate.strip()
-        entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name, slot_delegate_map))
+    if create_combined and combined_name:
+        if not combined_sources and auto_priority:
+            registry = er.async_get(hass)
+            discovered: list[str] = []
+            for cfg_entry in hass.config_entries.async_entries(DOMAIN):
+                if cfg_entry.entry_id == entry.entry_id:
+                    continue
+                for entity_entry in er.async_entries_for_config_entry(registry, cfg_entry.entry_id):
+                    if entity_entry.domain == "media_player" and entity_entry.unique_id.endswith("_cover_player") and entity_entry.entity_id:
+                        discovered.append(entity_entry.entity_id)
+            combined_sources = sorted(set(discovered))
+        if combined_sources:
+            display_sources, auto_audio_sources = _resolve_combined_sources(hass, combined_sources)
+            if auto_priority:
+                display_sources = _sort_sources_by_category(display_sources, hass)
+            control_sources = combined_audio or auto_audio_sources
+            slot_delegate_map: dict[str, str] = {}
+            for idx, wrapper in enumerate(combined_sources, start=1):
+                delegate = entry.options.get(f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}")
+                if not isinstance(delegate, str) or not delegate.strip():
+                    continue
+                resolved_display, _ = _resolve_combined_sources(hass, [wrapper])
+                if resolved_display:
+                    slot_delegate_map[resolved_display[0]] = delegate.strip()
+            entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name, slot_delegate_map))
 
     async_add_entities(entities, update_before_add=False)
 

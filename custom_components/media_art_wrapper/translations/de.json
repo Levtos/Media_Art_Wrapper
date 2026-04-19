@@ -5,12 +5,14 @@
         "title": "Media Art Wrapper — Player",
         "description": "Wähle einen Media Player aus und lege fest, wie dessen Inhalte kategorisiert werden sollen.",
         "data": {
+          "entity_kind": "Integrationstyp",
           "source_entity_id": "Media Player",
           "display_name": "Anzeigename",
           "category": "Inhaltskategorie"
         },
         "data_description": {
-          "source_entity_id": "Die Media-Player-Entity, deren Artwork ermittelt werden soll.",
+          "entity_kind": "Wähle ob ein Wrapper-Player, ein kombinierter Player oder beides erstellt werden soll.",
+          "source_entity_id": "Die Media-Player-Entity, deren Artwork ermittelt werden soll. Pflichtfeld für Wrapper-Typen.",
           "display_name": "In Home Assistant angezeigter Name. Leer lassen, um den Playernamen zu verwenden.",
           "category": "Bestimmt, welche Artwork-Provider verwendet werden. Auto probiert alle Provider."
         }
@@ -52,6 +54,7 @@
           "create_combined": "Kombinierten Player erstellen",
           "combined_name": "Name des kombinierten Players",
           "auto_priority": "Priorität automatisch aus Kategorie ableiten",
+          "combined_sources": "Quellen (leer lassen um alle konfigurierten Wrapper zu verwenden)",
           "combined_source_1": "Quelle 1 (höchste Priorität)",
           "combined_source_2": "Quelle 2",
           "combined_source_3": "Quelle 3",
@@ -74,6 +77,7 @@
           "create_combined": "Wenn aktiviert, werden eine virtuelle media_player-Entity und eine Cover-Bild-Entity erstellt, die die unten angegebenen Quellen zusammenfassen.",
           "combined_name": "Wird für die Entity-Namen verwendet: media_player.NAME und image.NAME_cover. Nur Kleinbuchstaben und Unterstriche.",
           "auto_priority": "Gaming hat höchste Priorität, dann Streaming, TV, Musik, Auto.",
+          "combined_sources": "Wähle die MAW-Wrapper-Player für den kombinierten Player. Leer lassen um alle automatisch einzubeziehen.",
           "combined_source_1": "Prioritätsreihenfolge: PLAYING oder BUFFERING schlägt PAUSED oder IDLE, was ON schlägt. Bei gleichem Status gewinnt die niedrigere Slotnummer.",
           "combined_audio_sources": "Entitäten die Lautstärke, Shuffle und Wiedergabebefehle empfangen. Falls leer, werden Befehle an die aktive Anzeigeentität gesendet.",
           "combined_delegate_1": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
@@ -142,6 +146,7 @@
           "create_combined": "Kombinierten Player erstellen",
           "combined_name": "Name des kombinierten Players",
           "auto_priority": "Priorität automatisch aus Kategorie ableiten",
+          "combined_sources": "Quellen (leer lassen um alle konfigurierten Wrapper zu verwenden)",
           "combined_source_1": "Quelle 1 (höchste Priorität)",
           "combined_source_2": "Quelle 2",
           "combined_source_3": "Quelle 3",
@@ -164,6 +169,7 @@
           "create_combined": "Wenn aktiviert, werden eine virtuelle media_player-Entity und eine Cover-Bild-Entity erstellt, die die unten angegebenen Quellen zusammenfassen.",
           "combined_name": "Wird für die Entity-Namen verwendet: media_player.NAME und image.NAME_cover. Nur Kleinbuchstaben und Unterstriche.",
           "auto_priority": "Gaming hat höchste Priorität, dann Streaming, TV, Musik, Auto.",
+          "combined_sources": "Wähle die MAW-Wrapper-Player für den kombinierten Player. Leer lassen um alle automatisch einzubeziehen.",
           "combined_source_1": "Prioritätsreihenfolge: PLAYING oder BUFFERING schlägt PAUSED oder IDLE, was ON schlägt. Bei gleichem Status gewinnt die niedrigere Slotnummer.",
           "combined_audio_sources": "Entitäten die Lautstärke, Shuffle und Wiedergabebefehle empfangen. Falls leer, werden Befehle an die aktive Anzeigeentität gesendet.",
           "combined_delegate_1": "Falls gesetzt, werden Browse, Queue und Steuerungsbefehle an diese Entität weitergeleitet. Nützlich z.B. für Music Assistant bei HomePods oder native PS5-Steuerung.",
@@ -179,6 +185,7 @@
     }
   },
   "errors": {
-    "combined_name_required": "Ein Name ist erforderlich, wenn der kombinierte Player aktiviert ist."
+    "combined_name_required": "Ein Name ist erforderlich, wenn der kombinierte Player aktiviert ist.",
+    "source_entity_required": "Ein Media-Player ist für diesen Integrationstyp erforderlich."
   }
 }

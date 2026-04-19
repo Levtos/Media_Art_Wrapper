@@ -157,7 +157,7 @@ def _step1_schema(source_entity_id: str | None = None, display_name: str = "", c
         )
         if entity_kind != ENTITY_KIND_COMBINED_ONLY:
             kw: dict[str, Any] = {"default": source_entity_id} if source_entity_id else {}
-            fields[vol.Required(CONF_SOURCE_ENTITY_ID, **kw)] = _ENTITY_SEL
+            fields[vol.Optional(CONF_SOURCE_ENTITY_ID, **kw)] = _ENTITY_SEL
     fields[vol.Optional(CONF_DISPLAY_NAME, default=display_name)] = selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT))
     fields[vol.Required(CONF_CATEGORY, default=category)] = selector.SelectSelector(
         selector.SelectSelectorConfig(options=_CATEGORY_OPTIONS, multiple=False, mode=selector.SelectSelectorMode.DROPDOWN)
@@ -231,8 +231,14 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
 
     chosen_sources: list[str] = list(opts.get(CONF_COMBINED_SOURCES, []))
     if auto_priority:
-        preview = ", ".join(chosen_sources) if chosen_sources else "Auto: no source selected"
-        fields[vol.Optional(_PREVIEW_KEY, default=preview)] = selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT))
+        if maw_sources:
+            fields[vol.Optional(CONF_COMBINED_SOURCES, default=chosen_sources)] = selector.SelectSelector(
+                selector.SelectSelectorConfig(options=maw_sources, multiple=True, mode=selector.SelectSelectorMode.LIST)
+            )
+        else:
+            fields[vol.Optional(_NO_MAW_INFO, default="Keine MAW-Instanzen gefunden. Bitte zuerst einzelne Player konfigurieren.")] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
     else:
         slot_defaults = _combined_sources_to_slots(chosen_sources)
         if not maw_sources:
@@ -267,6 +273,7 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._entity_kind: str = ENTITY_KIND_WRAPPER
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
+        errors: dict[str, str] = {}
         if user_input is not None:
             draft = {**self._step1_draft, **user_input}
             selected_kind = draft.get(CONF_ENTITY_KIND, ENTITY_KIND_WRAPPER)
@@ -276,30 +283,47 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 or selected_category != self._step1_draft.get(CONF_CATEGORY, CATEGORY_AUTO)
             ):
                 self._step1_draft = draft
-                return self.async_show_form(step_id="user", data_schema=_step1_schema(include_source=True, **draft))
+                return self.async_show_form(step_id="user", data_schema=_step1_schema(include_source=True, **{k: v for k, v in draft.items() if k in (CONF_SOURCE_ENTITY_ID, CONF_DISPLAY_NAME, CONF_CATEGORY, CONF_ENTITY_KIND)}))
 
             self._entity_kind = selected_kind
             source_entity_id = draft.get(CONF_SOURCE_ENTITY_ID)
-            if self._entity_kind != ENTITY_KIND_COMBINED_ONLY and source_entity_id:
-                await self.async_set_unique_id(source_entity_id)
-                self._abort_if_unique_id_configured()
 
-            display_name = str(draft.get(CONF_DISPLAY_NAME, "")).strip()
-            if not display_name and source_entity_id:
-                display_name = await _friendly_name(self.hass, source_entity_id)
+            if self._entity_kind != ENTITY_KIND_COMBINED_ONLY and not source_entity_id:
+                errors[CONF_SOURCE_ENTITY_ID] = "source_entity_required"
 
-            self._step1 = {
-                CONF_SOURCE_ENTITY_ID: source_entity_id,
-                CONF_DISPLAY_NAME: display_name,
-                CONF_CATEGORY: selected_category,
-            }
-            if self._entity_kind == ENTITY_KIND_COMBINED_ONLY:
-                self._step2 = {}
-                self._step3[CONF_CREATE_COMBINED] = True
-                return await self.async_step_combined()
-            return await self.async_step_artwork()
+            if not errors:
+                if self._entity_kind != ENTITY_KIND_COMBINED_ONLY and source_entity_id:
+                    await self.async_set_unique_id(source_entity_id)
+                    self._abort_if_unique_id_configured()
 
-        return self.async_show_form(step_id="user", data_schema=_step1_schema(include_source=True, entity_kind=self._entity_kind))
+                display_name = str(draft.get(CONF_DISPLAY_NAME, "")).strip()
+                if not display_name and source_entity_id:
+                    display_name = await _friendly_name(self.hass, source_entity_id)
+
+                self._step1 = {
+                    CONF_SOURCE_ENTITY_ID: source_entity_id,
+                    CONF_DISPLAY_NAME: display_name,
+                    CONF_CATEGORY: selected_category,
+                }
+                if self._entity_kind == ENTITY_KIND_COMBINED_ONLY:
+                    self._step2 = {}
+                    self._step3[CONF_CREATE_COMBINED] = True
+                    return await self.async_step_combined()
+                return await self.async_step_artwork()
+
+            self._step1_draft = draft
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_step1_schema(
+                include_source=True,
+                source_entity_id=self._step1_draft.get(CONF_SOURCE_ENTITY_ID),
+                display_name=str(self._step1_draft.get(CONF_DISPLAY_NAME, "")),
+                category=str(self._step1_draft.get(CONF_CATEGORY, CATEGORY_AUTO)),
+                entity_kind=self._step1_draft.get(CONF_ENTITY_KIND, self._entity_kind),
+            ),
+            errors=errors,
+        )
 
     async def async_step_artwork(self, user_input: dict[str, Any] | None = None):
         category = self._step1.get(CONF_CATEGORY, CATEGORY_AUTO)
@@ -356,6 +380,7 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             new_auto = bool(draft.get(CONF_AUTO_PRIORITY, True))
             if new_create != prev_create or (new_create and new_auto != prev_auto):
                 selected = list(draft.get(CONF_COMBINED_SOURCES, [])) or _combined_slots_to_sources(draft)
+                draft[CONF_COMBINED_SOURCES] = selected
                 draft[CONF_COMBINED_AUDIO_SOURCES] = [control_map[s] for s in selected if control_map.get(s)]
                 self._step3 = draft
                 return self.async_show_form(step_id="combined", data_schema=_step3_schema(draft, maw_sources, control_map, force_combined=self._entity_kind == ENTITY_KIND_COMBINED_ONLY))
@@ -482,6 +507,7 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
             new_auto = bool(draft.get(CONF_AUTO_PRIORITY, True))
             if new_create != prev_create or (new_create and new_auto != prev_auto):
                 selected = list(draft.get(CONF_COMBINED_SOURCES, [])) or _combined_slots_to_sources(draft)
+                draft[CONF_COMBINED_SOURCES] = selected
                 draft[CONF_COMBINED_AUDIO_SOURCES] = [control_map[s] for s in selected if control_map.get(s)]
                 self._combined_opts = draft
                 return self.async_show_form(step_id="combined", data_schema=_step3_schema(draft, maw_sources, control_map))

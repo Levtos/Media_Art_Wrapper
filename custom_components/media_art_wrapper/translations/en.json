@@ -5,12 +5,14 @@
         "title": "Media Art Wrapper — Player",
         "description": "Select the media player to wrap and choose how its content should be categorised.",
         "data": {
+          "entity_kind": "Integration type",
           "source_entity_id": "Media player",
           "display_name": "Display name",
           "category": "Content category"
         },
         "data_description": {
-          "source_entity_id": "The media player entity whose artwork will be resolved.",
+          "entity_kind": "Choose whether to create a wrapper player, a combined player, or both.",
+          "source_entity_id": "The media player entity whose artwork will be resolved. Required for wrapper types.",
           "display_name": "Friendly name shown in Home Assistant. Leave blank to use the player name.",
           "category": "Determines which artwork providers are used. Choose Auto to try all providers."
         }
@@ -52,6 +54,7 @@
           "create_combined": "Create combined player",
           "combined_name": "Combined player name",
           "auto_priority": "Auto-derive priority from category",
+          "combined_sources": "Sources (leave empty to use all configured wrappers)",
           "combined_source_1": "Source 1 (highest priority)",
           "combined_source_2": "Source 2",
           "combined_source_3": "Source 3",
@@ -142,6 +145,7 @@
           "create_combined": "Create combined player",
           "combined_name": "Combined player name",
           "auto_priority": "Auto-derive priority from category",
+          "combined_sources": "Sources (leave empty to use all configured wrappers)",
           "combined_source_1": "Source 1 (highest priority)",
           "combined_source_2": "Source 2",
           "combined_source_3": "Source 3",
@@ -164,6 +168,7 @@
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
           "combined_name": "Used to name the entities: media_player.NAME and image.NAME_cover. Use lowercase letters and underscores only.",
           "auto_priority": "Gaming has highest priority, then Streaming, TV, Music, Auto.",
+          "combined_sources": "Select the MAW wrapper players for the combined player. Leave empty to include all automatically.",
           "combined_source_1": "Priority ordered: PLAYING or BUFFERING beats PAUSED or IDLE, which beats ON. Lower slot number wins within the same tier.",
           "combined_audio_sources": "Entities that receive volume, shuffle and playback commands. If empty, commands are sent to the active display entity.",
           "combined_delegate_1": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
@@ -179,6 +184,7 @@
     }
   },
   "errors": {
-    "combined_name_required": "A name is required when the combined player is enabled."
+    "combined_name_required": "A name is required when the combined player is enabled.",
+    "source_entity_required": "A media player entity is required for this integration type."
   }
 }

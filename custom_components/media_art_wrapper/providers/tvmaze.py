@@ -24,6 +24,10 @@ _JSON_KW = {"content_type": None}
 # Module-level caches
 _oerr_image_cache: list[str] | None = None
 _schedule_cache: dict[str, list[dict[str, Any]]] = {}
+# Search result cache keyed by query term — prevents duplicate API calls when
+# both _tvmaze_show_id and _tvmaze_show_image are invoked for the same term.
+_show_search_cache: dict[str, list[Any]] = {}
+_SHOW_SEARCH_CACHE_MAX = 128
 
 _RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _RE_SPACES = re.compile(r"\s+")
@@ -152,7 +156,10 @@ async def _epg_get_current_program(
 # TVMaze show search
 # ---------------------------------------------------------------------------
 
-async def _tvmaze_show_image(session, term: str) -> str | None:
+async def _tvmaze_search_shows(session, term: str) -> list[Any]:
+    """Return the raw TVMaze show-search response for *term*, cached per term."""
+    if term in _show_search_cache:
+        return _show_search_cache[term]
     try:
         async with session.get(
             TVMAZE_SEARCH_URL, params={"q": term}, timeout=10
@@ -161,9 +168,20 @@ async def _tvmaze_show_image(session, term: str) -> str | None:
             results = await resp.json(**_JSON_KW)
     except Exception as err:
         _LOGGER.debug("TVMaze show search failed for %r: %s", term, err)
-        return None
+        results = []
 
-    if not isinstance(results, list) or not results:
+    if not isinstance(results, list):
+        results = []
+
+    if len(_show_search_cache) >= _SHOW_SEARCH_CACHE_MAX:
+        _show_search_cache.pop(next(iter(_show_search_cache)))
+    _show_search_cache[term] = results
+    return results
+
+
+async def _tvmaze_show_image(session, term: str) -> str | None:
+    results = await _tvmaze_search_shows(session, term)
+    if not results:
         return None
 
     best = results[0]
@@ -213,17 +231,8 @@ async def _tvmaze_episode_by_date(
 
 async def _tvmaze_show_id(session, term: str) -> tuple[int | None, str | None]:
     """Return (show_id, show_image_url) for the best-matching TVMaze show."""
-    try:
-        async with session.get(
-            TVMAZE_SEARCH_URL, params={"q": term}, timeout=10
-        ) as resp:
-            resp.raise_for_status()
-            results = await resp.json(**_JSON_KW)
-    except Exception as err:
-        _LOGGER.debug("TVMaze show search failed for %r: %s", term, err)
-        return None, None
-
-    if not isinstance(results, list) or not results:
+    results = await _tvmaze_search_shows(session, term)
+    if not results:
         return None, None
 
     best = results[0]

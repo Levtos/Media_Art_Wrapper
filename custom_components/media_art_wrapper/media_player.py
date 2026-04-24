@@ -23,22 +23,15 @@ from .const import (
     CONF_SOURCE_ENTITY_ID,
     DOMAIN,
 )
-from .helpers import FALLBACK_IMAGE, source_name
-
-# ---------------------------------------------------------------------------
-# Tier constants – shared with image.py for the combined cover image entity
-# ---------------------------------------------------------------------------
-_TIER1: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.PLAYING, MediaPlayerState.BUFFERING})
-_TIER2: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.PAUSED, MediaPlayerState.IDLE})
-_TIER3: frozenset[MediaPlayerState] = frozenset({MediaPlayerState.ON})
-
-
-def _safe_state(raw: str) -> MediaPlayerState | None:
-    """Parse a raw state string into a MediaPlayerState, or return None on failure."""
-    try:
-        return MediaPlayerState(raw)
-    except ValueError:
-        return None
+from .helpers import (
+    FALLBACK_IMAGE,
+    TIER1_STATES as _TIER1,
+    TIER2_STATES as _TIER2,
+    TIER3_STATES as _TIER3,
+    active_entity_id as _active_entity_id_helper,
+    safe_media_player_state as _safe_state,
+    source_name,
+)
 
 
 def _get_combined_config(entry: ConfigEntry) -> tuple[bool, str, list[str], list[str], bool]:
@@ -74,10 +67,6 @@ def _sort_sources_by_category(
     return sorted(sources, key=lambda sid: cat_priority.get(sid, 999))
 
 
-def _entry_delegate_entity(entry: ConfigEntry) -> str | None:
-    return None
-
-
 def _resolve_combined_sources(hass: HomeAssistant, wrapper_entities: list[str]) -> tuple[list[str], list[str]]:
     """Resolve wrapper entity ids into display (original) and control (delegate) ids."""
     display_sources: list[str] = []
@@ -98,9 +87,8 @@ def _resolve_combined_sources(hass: HomeAssistant, wrapper_entities: list[str]) 
         original = str(entry.data.get(CONF_SOURCE_ENTITY_ID, "")).strip()
         if not original:
             continue
-        delegate = _entry_delegate_entity(entry)
         display_sources.append(original)
-        control_sources.append(delegate or original)
+        control_sources.append(original)
 
     return list(dict.fromkeys(display_sources)), list(dict.fromkeys(control_sources))
 
@@ -162,7 +150,7 @@ class MediaCoverArtUniversalPlayer(CoordinatorEntity[CoverCoordinator], MediaPla
             pass
         self._attr_unique_id = f"{entry.entry_id}_cover_player"
         self._attr_name = f"{source_name(coordinator.source_entity_id)} Cover"
-        self._delegate_entity = _entry_delegate_entity(entry)
+        self._delegate_entity: str | None = None
         self._unsub_source_state = None
 
     @property
@@ -501,16 +489,7 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return None
 
     def _active_entity_id(self) -> str | None:
-        """Return the entity_id of the highest-priority active display source."""
-        for tier in (_TIER1, _TIER2, _TIER3):
-            for sid in self._sources:
-                state = self.hass.states.get(sid)
-                if state is None:
-                    continue
-                s = _safe_state(state.state)
-                if s is not None and s in tier:
-                    return sid
-        return None
+        return _active_entity_id_helper(self.hass, self._sources)
 
     def _active_audio_entity_id(self) -> str | None:
         """Return delegate control target for active source when configured."""

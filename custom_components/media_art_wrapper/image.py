@@ -25,8 +25,12 @@ from .const import (
     FALLBACK_CUSTOM_URL_MODE,
     FALLBACK_SERVICE_LOGO,
 )
-from .helpers import FALLBACK_IMAGE, service_logo, source_name
-from .media_player import _TIER1, _TIER2, _TIER3, _safe_state
+from .helpers import (
+    FALLBACK_IMAGE,
+    active_entity_id as _active_entity_id_helper,
+    service_logo,
+    source_name,
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities) -> None:
@@ -202,16 +206,7 @@ class CombinedCoverImage(ImageEntity):
     # ------------------------------------------------------------------
 
     def _active_entity_id(self) -> str | None:
-        """Return the entity_id of the highest-priority active display source."""
-        for tier in (_TIER1, _TIER2, _TIER3):
-            for sid in self._sources:
-                state = self.hass.states.get(sid)
-                if state is None:
-                    continue
-                s = _safe_state(state.state)
-                if s is not None and s in tier:
-                    return sid
-        return None
+        return _active_entity_id_helper(self.hass, self._sources)
 
     def _refresh_fingerprint(self) -> None:
         """Bump image_last_updated when the active source's cover art changes."""

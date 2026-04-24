@@ -196,11 +196,12 @@ class SteamGridDBProvider(ArtworkProvider):
             return None
 
         grids_url = SGDB_GRIDS_URL.format(game_id=game_id)
+        # Portrait library-art dimensions first, retry without filter if empty.
         try:
             async with session.get(
                 grids_url,
                 headers=headers,
-                params={"limit": "1"},
+                params={"limit": "1", "dimensions": "600x900,660x930"},
                 timeout=10,
             ) as resp:
                 resp.raise_for_status()
@@ -209,8 +210,12 @@ class SteamGridDBProvider(ArtworkProvider):
             _LOGGER.debug("SteamGridDB grids fetch failed: %s", err)
             return None
 
-        if not isinstance(grids_data, dict) or not grids_data.get("success"):
-            # Retry without dimension filter
+        grids = (
+            grids_data.get("data")
+            if isinstance(grids_data, dict) and grids_data.get("success")
+            else None
+        )
+        if not grids:
             try:
                 async with session.get(
                     grids_url,
@@ -220,7 +225,8 @@ class SteamGridDBProvider(ArtworkProvider):
                 ) as resp:
                     resp.raise_for_status()
                     grids_data = await resp.json(**_JSON_KW)
-            except Exception:
+            except Exception as err:
+                _LOGGER.debug("SteamGridDB grids retry failed: %s", err)
                 return None
 
         grids = grids_data.get("data") or []

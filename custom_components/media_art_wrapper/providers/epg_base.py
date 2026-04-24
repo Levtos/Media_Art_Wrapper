@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from homeassistant.core import HomeAssistant
 
@@ -27,7 +27,7 @@ class HaEpgProvider:
         today = state.attributes.get("today", {})
         if not isinstance(today, dict):
             return None
-        now = datetime.now().strftime("%H:%M")
+        now = datetime.now(tz=timezone.utc).strftime("%H:%M")
 
         current = None
         for slot_time, program in sorted(today.items()):

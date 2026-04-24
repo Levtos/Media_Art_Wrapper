@@ -12,6 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SGDB_SEARCH_URL = "https://www.steamgriddb.com/api/v2/search/autocomplete/{term}"
 SGDB_GRIDS_URL = "https://www.steamgriddb.com/api/v2/grids/game/{game_id}"
+SGDB_LOGOS_URL = "https://www.steamgriddb.com/api/v2/logos/game/{game_id}"
 _JSON_KW = {"content_type": None}
 
 # Steam public search-suggest endpoint (no API key needed)
@@ -151,17 +152,15 @@ class SteamGridDBProvider(ArtworkProvider):
     def is_available(self) -> bool:
         return bool(self._api_key)
 
-    async def fetch(self, session, query: ArtworkQuery) -> ArtworkResult | None:
-        title = (query.title or "").strip()
-        if not title:
-            return None
+    @property
+    def _auth_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._api_key}"}
 
-        headers = {"Authorization": f"Bearer {self._api_key}"}
-
-        # Search for the game by title
+    async def _find_game_id(self, session, title: str) -> int | None:
+        """Resolve a title to a SteamGridDB game_id via /search/autocomplete."""
         search_url = SGDB_SEARCH_URL.format(term=title)
         try:
-            async with session.get(search_url, headers=headers, timeout=10) as resp:
+            async with session.get(search_url, headers=self._auth_headers, timeout=10) as resp:
                 resp.raise_for_status()
                 data: dict[str, Any] = await resp.json(**_JSON_KW)
         except Exception as err:
@@ -175,7 +174,6 @@ class SteamGridDBProvider(ArtworkProvider):
         if not isinstance(results, list) or not results:
             return None
 
-        # Find best-matching game by name similarity
         best_game: dict[str, Any] | None = None
         best_score = -1.0
         norm_title = _normalize(title)
@@ -191,16 +189,90 @@ class SteamGridDBProvider(ArtworkProvider):
         if best_game is None or best_score < 0.3:
             return None
 
-        game_id = best_game.get("id")
-        if not isinstance(game_id, int):
+        gid = best_game.get("id")
+        return gid if isinstance(gid, int) else None
+
+    async def fetch_logo(self, session, title: str) -> ArtworkResult | None:
+        """Fetch a transparent PNG logo for *title* from the SGDB /logos/ endpoint.
+
+        Intended for the badge-overlay system (§2.4): returns a logo only
+        when a static PNG with alpha channel is available; GIFs are skipped.
+        """
+        title = (title or "").strip()
+        if not title:
+            return None
+
+        game_id = await self._find_game_id(session, title)
+        if game_id is None:
+            return None
+
+        logos_url = SGDB_LOGOS_URL.format(game_id=game_id)
+        try:
+            async with session.get(
+                logos_url,
+                headers=self._auth_headers,
+                params={"mimes": "image/png", "types": "static", "limit": "1"},
+                timeout=10,
+            ) as resp:
+                resp.raise_for_status()
+                logos_data: dict[str, Any] = await resp.json(**_JSON_KW)
+        except Exception as err:
+            _LOGGER.debug("SteamGridDB logos fetch failed: %s", err)
+            return None
+
+        logos = (
+            logos_data.get("data")
+            if isinstance(logos_data, dict) and logos_data.get("success")
+            else None
+        )
+        if not isinstance(logos, list) or not logos:
+            return None
+
+        first = logos[0]
+        if not isinstance(first, dict):
+            return None
+
+        url = first.get("url")
+        if not isinstance(url, str) or not url:
+            return None
+
+        try:
+            async with session.get(url, timeout=10) as resp:
+                resp.raise_for_status()
+                ct = resp.headers.get("Content-Type", "image/png")
+                image = await resp.read()
+        except Exception as err:
+            _LOGGER.debug("SteamGridDB logo download failed: %s", err)
+            return None
+
+        if not image:
+            return None
+
+        return ArtworkResult(
+            provider_name="steamgriddb_logo",
+            image_url=url,
+            confidence=0.92,
+            image=image,
+            content_type=ct,
+        )
+
+    async def fetch(self, session, query: ArtworkQuery) -> ArtworkResult | None:
+        title = (query.title or "").strip()
+        if not title:
+            return None
+
+        headers = self._auth_headers
+        game_id = await self._find_game_id(session, title)
+        if game_id is None:
             return None
 
         grids_url = SGDB_GRIDS_URL.format(game_id=game_id)
+        # Portrait library-art dimensions first, retry without filter if empty.
         try:
             async with session.get(
                 grids_url,
                 headers=headers,
-                params={"limit": "1"},
+                params={"limit": "1", "dimensions": "600x900,660x930"},
                 timeout=10,
             ) as resp:
                 resp.raise_for_status()
@@ -209,8 +281,12 @@ class SteamGridDBProvider(ArtworkProvider):
             _LOGGER.debug("SteamGridDB grids fetch failed: %s", err)
             return None
 
-        if not isinstance(grids_data, dict) or not grids_data.get("success"):
-            # Retry without dimension filter
+        grids = (
+            grids_data.get("data")
+            if isinstance(grids_data, dict) and grids_data.get("success")
+            else None
+        )
+        if not grids:
             try:
                 async with session.get(
                     grids_url,
@@ -220,7 +296,8 @@ class SteamGridDBProvider(ArtworkProvider):
                 ) as resp:
                     resp.raise_for_status()
                     grids_data = await resp.json(**_JSON_KW)
-            except Exception:
+            except Exception as err:
+                _LOGGER.debug("SteamGridDB grids retry failed: %s", err)
                 return None
 
         grids = grids_data.get("data") or []

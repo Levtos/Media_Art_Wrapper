@@ -167,15 +167,34 @@ class ITunesProvider(ArtworkProvider):
         except Exception:
             return None
 
-        def _name_overlap(a: str, b: str) -> bool:
-            ca = _clean_score(a)
-            cb = _clean_score(b)
-            return bool(ca and cb and (ca in cb or cb in ca))
+        q_clean = _clean_score(term)
+        if not q_clean:
+            return None
 
+        scored: list[tuple[int, dict[str, Any]]] = []
         for item in results:
             result_name = str(item.get("trackName") or item.get("collectionName") or "")
-            if not _name_overlap(term, result_name):
+            r_clean = _clean_score(result_name)
+            if not r_clean:
                 continue
+            if q_clean == r_clean:
+                score = 20
+            elif q_clean in r_clean or r_clean in q_clean:
+                score = 10
+            else:
+                q_tokens = set(q_clean.split())
+                r_tokens = set(r_clean.split())
+                overlap = len(q_tokens & r_tokens)
+                if overlap == 0:
+                    continue
+                score = overlap * 3
+            scored.append((score, item))
+
+        if not scored:
+            return None
+
+        scored.sort(key=lambda t: t[0], reverse=True)
+        for score, item in scored:
             artwork = item.get("artworkUrl100") or item.get("artworkUrl60") or item.get("artworkUrl30")
             if not isinstance(artwork, str):
                 continue
@@ -196,7 +215,7 @@ class ITunesProvider(ArtworkProvider):
                         return ArtworkResult(
                             provider_name="itunes_tv",
                             image_url=url,
-                            confidence=0.7,
+                            confidence=min(1.0, score / 20),
                             image=image,
                             content_type=ct,
                         )

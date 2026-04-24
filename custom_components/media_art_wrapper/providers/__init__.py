@@ -120,6 +120,7 @@ async def resolve_cover(
                 )
             _LOGGER.debug("Private channel %r has no channel_icon, falling through to providers", raw_channel)
 
+    best: ArtworkResult | None = None
     for provider in providers:
         try:
             result = await provider.fetch(session, query)
@@ -131,14 +132,24 @@ async def resolve_cover(
             )
             continue
 
-        if result is not None:
-            _LOGGER.debug(
-                "Artwork resolved by %r (url=%s, confidence=%.2f)",
-                result.provider_name,
-                result.image_url,
-                result.confidence,
-            )
-            return result
+        if result is None:
+            continue
+
+        if best is None or result.confidence > best.confidence:
+            best = result
+
+        # Perfect match — no later provider can improve on confidence=1.0
+        if best.confidence >= 1.0:
+            break
+
+    if best is not None:
+        _LOGGER.debug(
+            "Artwork resolved by %r (url=%s, confidence=%.2f)",
+            best.provider_name,
+            best.image_url,
+            best.confidence,
+        )
+        return best
 
     _LOGGER.debug("No provider returned artwork for query: title=%r artist=%r", query.title, query.artist)
     return None

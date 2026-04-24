@@ -3,15 +3,14 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
+from .epg_base import _episode_image_url, get_schedule_program
 
 _LOGGER = logging.getLogger(__name__)
 
 TVMAZE_SEARCH_URL = "https://api.tvmaze.com/search/shows"
-TVMAZE_SCHEDULE_URL = "https://api.tvmaze.com/schedule"
 TVMAZE_EPISODES_BY_DATE_URL = "https://api.tvmaze.com/shows/{show_id}/episodesbydate"
 WIKIPEDIA_API_URL = "https://{lang}.wikipedia.org/w/api.php"
 _COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
@@ -23,7 +22,10 @@ _JSON_KW = {"content_type": None}
 
 # Module-level caches
 _oerr_image_cache: list[str] | None = None
-_schedule_cache: dict[str, list[dict[str, Any]]] = {}
+# Search result cache keyed by query term — prevents duplicate API calls when
+# both _tvmaze_show_id and _tvmaze_show_image are invoked for the same term.
+_show_search_cache: dict[str, list[Any]] = {}
+_SHOW_SEARCH_CACHE_MAX = 128
 
 _RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _RE_SPACES = re.compile(r"\s+")
@@ -52,107 +54,13 @@ def _names_overlap(a: str, b: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# EPG helpers (TVMaze Germany schedule)
-# ---------------------------------------------------------------------------
-
-async def _fetch_schedule(session, date_str: str) -> list[dict[str, Any]]:
-    if date_str in _schedule_cache:
-        return _schedule_cache[date_str]
-
-    try:
-        async with session.get(
-            TVMAZE_SCHEDULE_URL,
-            params={"country": "DE", "date": date_str},
-            timeout=15,
-        ) as resp:
-            resp.raise_for_status()
-            payload = await resp.json(**_JSON_KW)
-    except Exception as err:
-        _LOGGER.debug("TVMaze schedule fetch failed (%s): %s", date_str, err)
-        return []
-
-    if not isinstance(payload, list):
-        return []
-
-    _schedule_cache[date_str] = payload
-    # Evict old entries – keep only today and yesterday
-    for old_key in [k for k in _schedule_cache if k < date_str]:
-        del _schedule_cache[old_key]
-    return payload
-
-
-def _network_name(episode: dict[str, Any]) -> str:
-    show = episode.get("show") or {}
-    network = show.get("network") or {}
-    web_channel = show.get("webChannel") or {}
-    return str(network.get("name") or web_channel.get("name") or "")
-
-
-def _channel_matches(episode: dict[str, Any], channel_tokens: list[str]) -> bool:
-    net = _clean(_network_name(episode))
-    if not net:
-        return False
-    return all(tok in net for tok in channel_tokens if len(tok) >= 2)
-
-
-def _is_airing_now(episode: dict[str, Any], now: datetime) -> bool:
-    airstamp = episode.get("airstamp")
-    runtime = episode.get("runtime") or 30
-    if not airstamp:
-        return False
-    try:
-        start = datetime.fromisoformat(airstamp)
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
-        return False
-    return start <= now <= start + timedelta(minutes=runtime)
-
-
-def _episode_image_url(episode: dict[str, Any]) -> str | None:
-    for source in (episode.get("image"), (episode.get("show") or {}).get("image")):
-        if isinstance(source, dict):
-            url = source.get("original") or source.get("medium")
-            if isinstance(url, str) and url:
-                return url
-    return None
-
-
-async def _epg_get_current_program(
-    session, channel_name: str
-) -> dict[str, Any] | None:
-    """Return metadata for the programme currently airing on channel_name."""
-    channel_tokens = _clean(channel_name).split()
-    if not channel_tokens:
-        return None
-
-    now = datetime.now(tz=timezone.utc)
-    date_str = now.strftime("%Y-%m-%d")
-
-    for fetch_date in (date_str, (now - timedelta(days=1)).strftime("%Y-%m-%d")):
-        schedule = await _fetch_schedule(session, fetch_date)
-        for episode in schedule:
-            if not isinstance(episode, dict):
-                continue
-            if not _channel_matches(episode, channel_tokens):
-                continue
-            if not _is_airing_now(episode, now):
-                continue
-            show = episode.get("show") or {}
-            return {
-                "title": str(episode.get("name") or ""),
-                "show_name": str(show.get("name") or ""),
-                "image_url": _episode_image_url(episode),
-            }
-
-    return None
-
-
-# ---------------------------------------------------------------------------
 # TVMaze show search
 # ---------------------------------------------------------------------------
 
-async def _tvmaze_show_image(session, term: str) -> str | None:
+async def _tvmaze_search_shows(session, term: str) -> list[Any]:
+    """Return the raw TVMaze show-search response for *term*, cached per term."""
+    if term in _show_search_cache:
+        return _show_search_cache[term]
     try:
         async with session.get(
             TVMAZE_SEARCH_URL, params={"q": term}, timeout=10
@@ -161,9 +69,20 @@ async def _tvmaze_show_image(session, term: str) -> str | None:
             results = await resp.json(**_JSON_KW)
     except Exception as err:
         _LOGGER.debug("TVMaze show search failed for %r: %s", term, err)
-        return None
+        results = []
 
-    if not isinstance(results, list) or not results:
+    if not isinstance(results, list):
+        results = []
+
+    if len(_show_search_cache) >= _SHOW_SEARCH_CACHE_MAX:
+        _show_search_cache.pop(next(iter(_show_search_cache)))
+    _show_search_cache[term] = results
+    return results
+
+
+async def _tvmaze_show_image(session, term: str) -> str | None:
+    results = await _tvmaze_search_shows(session, term)
+    if not results:
         return None
 
     best = results[0]
@@ -213,17 +132,8 @@ async def _tvmaze_episode_by_date(
 
 async def _tvmaze_show_id(session, term: str) -> tuple[int | None, str | None]:
     """Return (show_id, show_image_url) for the best-matching TVMaze show."""
-    try:
-        async with session.get(
-            TVMAZE_SEARCH_URL, params={"q": term}, timeout=10
-        ) as resp:
-            resp.raise_for_status()
-            results = await resp.json(**_JSON_KW)
-    except Exception as err:
-        _LOGGER.debug("TVMaze show search failed for %r: %s", term, err)
-        return None, None
-
-    if not isinstance(results, list) or not results:
+    results = await _tvmaze_search_shows(session, term)
+    if not results:
         return None, None
 
     best = results[0]
@@ -458,17 +368,17 @@ class TVMazeProvider(ArtworkProvider):
         # is set — both are strong signals of a channel name rather than a show.
         is_channel_name = stripped_title != title or not (query.artist or "").strip()
         if is_channel_name and title:
-            epg = await _epg_get_current_program(session, stripped_title or title)
+            epg = await get_schedule_program(session, stripped_title or title)
             if epg:
-                if epg.get("image_url"):
-                    artwork_url = epg["image_url"]
+                if epg.image_url:
+                    artwork_url = epg.image_url
                     provider_name = "tv_epg"
                     _LOGGER.debug(
                         "EPG hit: channel=%r → programme=%r image=%r",
-                        title, epg.get("show_name") or epg.get("title"), artwork_url,
+                        title, epg.show_name or epg.title, artwork_url,
                     )
-                elif epg.get("show_name") or epg.get("title"):
-                    effective_search = epg.get("show_name") or epg.get("title") or title
+                elif epg.show_name or epg.title:
+                    effective_search = epg.show_name or epg.title or title
                     _LOGGER.debug(
                         "EPG title redirect: channel=%r → search=%r", title, effective_search
                     )

@@ -31,7 +31,10 @@
           "igdb_client_secret": "IGDB Client Secret (Gaming)",
           "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
           "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
-          "epg_sensor": "EPG-Sensor (optional)"
+          "epg_sensor": "EPG-Sensor (optional)",
+          "maw_sensor_tv_input": "Sensor: aktive TV-Quelle (§2.3)",
+          "maw_sensor_discord_game": "Sensor: Discord-Spiel (§2.3)",
+          "maw_sensor_stash_active": "Sensor: Stash aktiv (§2.3, optional)"
         },
         "data_description": {
           "ratio": "Voreingestellte Abmessungen für das Artwork-Bild. Custom für eigene Pixelwerte wählen.",
@@ -44,7 +47,10 @@
           "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
           "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
           "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
-          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
+          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork.",
+          "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Werte: ps5/atv/live_tv/tv_on_idle/none — steuert die §2.3 Artwork-Hierarchie.",
+          "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numerischer Sensor (>0 = Spiel aktiv).",
+          "maw_sensor_stash_active": "§7.2 — noch nicht vorhanden. Leer lassen oder eigenen binary_sensor angeben."
         }
       },
       "combined": {
@@ -145,7 +151,10 @@
           "igdb_client_secret": "IGDB Client Secret (Gaming)",
           "steamgriddb_api_key": "SteamGridDB API-Schlüssel (optional, Gaming)",
           "fanart_api_key": "Fanart.tv API-Schlüssel (optional, TV)",
-          "epg_sensor": "EPG-Sensor (optional)"
+          "epg_sensor": "EPG-Sensor (optional)",
+          "maw_sensor_tv_input": "Sensor: aktive TV-Quelle (§2.3)",
+          "maw_sensor_discord_game": "Sensor: Discord-Spiel (§2.3)",
+          "maw_sensor_stash_active": "Sensor: Stash aktiv (§2.3, optional)"
         },
         "data_description": {
           "ratio": "Voreingestellte Abmessungen für das Artwork-Bild. Custom für eigene Pixelwerte wählen.",
@@ -158,7 +167,10 @@
           "igdb_client_secret": "Twitch-Developer-App Client Secret, erforderlich für IGDB-Spiele-Cover.",
           "steamgriddb_api_key": "Optional. Ermöglicht hochwertige Community-Spielegrafiken von SteamGridDB. Steam-Store-Artwork funktioniert ohne Schlüssel.",
           "fanart_api_key": "Optional. Aktiviert TV-Logos und Poster von Fanart.tv.",
-          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork."
+          "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork.",
+          "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Werte: ps5/atv/live_tv/tv_on_idle/none — steuert die §2.3 Artwork-Hierarchie.",
+          "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numerischer Sensor (>0 = Spiel aktiv).",
+          "maw_sensor_stash_active": "§7.2 — noch nicht vorhanden. Leer lassen oder eigenen binary_sensor angeben."
         }
       },
       "combined": {

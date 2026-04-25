@@ -450,6 +450,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     2  – ``artwork_size`` replaced by separate ``artwork_width`` / ``artwork_height``.
     3  – Added category, display_name, ratio, fallback_mode, auto_priority;
          providers/ subpackage replaces old flat provider list.
+    4  – Renamed ratio presets to width-suffixed form (``1:1_2000`` etc.);
+         added ``create_wrapper`` flag for combined-only entries.
+    5  – Removed legacy ``delegate_entity`` key; introduced per-slot
+         ``combined_delegate_1..N``; backfilled ``epg_sensor`` default.
+    6  – Removed remaining ``delegate_entity`` artefacts; added
+         ``channel_icon`` and ``channel_name`` defaults on the wrapper.
     """
     current_version: int = entry.version
     _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)

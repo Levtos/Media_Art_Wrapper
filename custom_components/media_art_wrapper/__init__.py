@@ -23,19 +23,25 @@ from .const import (
     CONF_CATEGORY,
     CONF_CREATE_WRAPPER,
     CONF_FALLBACK_MODE,
+    CONF_MAW_SENSOR_DISCORD_GAME,
+    CONF_MAW_SENSOR_STASH_ACTIVE,
+    CONF_MAW_SENSOR_TV_INPUT,
     CONF_SOURCE_ENTITY_ID,
     CONF_EPG_SENSOR,
     COMBINED_NUM_SOURCE_SLOTS,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_SIZE,
     DEFAULT_ARTWORK_WIDTH,
+    DEFAULT_MAW_SENSOR_DISCORD_GAME,
+    DEFAULT_MAW_SENSOR_STASH_ACTIVE,
+    DEFAULT_MAW_SENSOR_TV_INPUT,
     DOMAIN,
     FALLBACK_PLACEHOLDER,
     PLATFORMS,
     RATIO_1_1_2000,
 )
-from .providers import get_providers, resolve_cover
 from .providers.epg_base import HaEpgProvider
+from .providers.hierarchy import detect_scenario, resolve_hierarchy
 from .providers.query_builder import build_query
 
 _LOGGER = logging.getLogger(__name__)
@@ -132,6 +138,9 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self._last_error: str | None = None
         self._epg_sensor: str | None = None
         self._epg_channel_icon: str | None = None
+        self._sensor_tv_input: str = ""
+        self._sensor_discord_game: str = ""
+        self._sensor_stash_active: str = ""
 
         super().__init__(
             hass=hass,
@@ -162,6 +171,34 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         epg = opts.get(CONF_EPG_SENSOR, data.get(CONF_EPG_SENSOR))
         self._epg_sensor = str(epg).strip() if isinstance(epg, str) and epg else None
 
+        # §7.1 context sensors driving the §2.3 hierarchy detector.
+        # Defaults match LASTENHEFT §7.1 so an out-of-the-box setup needs
+        # no extra configuration. Empty string disables that branch.
+        self._sensor_tv_input = str(
+            opts.get(CONF_MAW_SENSOR_TV_INPUT,
+                     data.get(CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT))
+        ).strip()
+        self._sensor_discord_game = str(
+            opts.get(CONF_MAW_SENSOR_DISCORD_GAME,
+                     data.get(CONF_MAW_SENSOR_DISCORD_GAME, DEFAULT_MAW_SENSOR_DISCORD_GAME))
+        ).strip()
+        self._sensor_stash_active = str(
+            opts.get(CONF_MAW_SENSOR_STASH_ACTIVE,
+                     data.get(CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE))
+        ).strip()
+
+    def _tracked_entity_ids(self) -> list[str]:
+        """Source plus §7.1 context sensors used by the §2.3 detector."""
+        ids = [self.source_entity_id]
+        for sensor in (
+            self._sensor_tv_input,
+            self._sensor_discord_game,
+            self._sensor_stash_active,
+        ):
+            if sensor and sensor not in ids:
+                ids.append(sensor)
+        return ids
+
     async def async_start(self) -> None:
         """Start listening to media_player state changes and do initial refresh."""
         if self._unsub_state_change is not None:
@@ -169,7 +206,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
 
         self._unsub_state_change = async_track_state_change_event(
             self.hass,
-            [self.source_entity_id],
+            self._tracked_entity_ids(),
             self._handle_state_change,
         )
 
@@ -188,6 +225,13 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
     def _handle_state_change(self, event) -> None:
         new_state: State | None = event.data.get("new_state")
         if new_state is None:
+            return
+
+        entity_id = event.data.get("entity_id")
+        if entity_id != self.source_entity_id:
+            # §7.1 context sensor changed — scenario may have changed even
+            # though the source track did not. Trigger a refresh either way.
+            self.hass.async_create_task(self.async_request_refresh())
             return
 
         changed = self._set_track_from_state(new_state)
@@ -259,6 +303,38 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             category=self.category,
         )
 
+    def _native_artwork_result(self, state_attrs: dict[str, Any]) -> str | None:
+        """§2.3 prio 1 — return source's own entity_picture URL when present.
+
+        Only public http(s) URLs count as native artwork; HA-relative paths
+        like /api/image_proxy/... typically loop back to the wrapper's own
+        served image and would create infinite recursion.
+        """
+        ep = state_attrs.get("entity_picture")
+        if isinstance(ep, str) and ep.startswith("http"):
+            return ep
+        return None
+
+    def _sensor_state_str(self, entity_id: str) -> str | None:
+        if not entity_id:
+            return None
+        st = self.hass.states.get(entity_id)
+        if st is None or st.state in {"unavailable", "unknown"}:
+            return None
+        return st.state
+
+    async def _fetch_native_image(self, url: str) -> tuple[bytes | None, str]:
+        """Best-effort byte download for §2.3 prio 1 native artwork."""
+        try:
+            async with self._session.get(url, timeout=10) as resp:
+                if resp.status != 200:
+                    return None, "image/jpeg"
+                ct = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+                return await resp.read(), ct
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Native artwork download failed (%s): %s", url, err)
+            return None, "image/jpeg"
+
     async def _async_update_data(self) -> CoverData:
         """Fetch and cache cover data for current track."""
         async with self._lock:
@@ -272,6 +348,28 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
 
             try:
                 state_attrs = dict(self._state_attrs)
+
+                # §2.3 prio 1 — native artwork pass-through.
+                native_url = self._native_artwork_result(state_attrs)
+                if native_url:
+                    image, ct = await self._fetch_native_image(native_url)
+                    self._last_error = None
+                    data = CoverData(
+                        source_entity_id=self.source_entity_id,
+                        track_key=track_key,
+                        artist=artist,
+                        title=title,
+                        album=album,
+                        provider="native",
+                        artwork_url=native_url,
+                        content_type=ct,
+                        image=image,
+                        last_updated=dt_util.utcnow(),
+                        category=self.category,
+                    )
+                    self._last_cover = data
+                    return data
+
                 self._epg_channel_icon = None
                 if self.category in {"tv", "auto"} and self._epg_sensor:
                     try:
@@ -291,8 +389,23 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     artwork_width=self.artwork_width,
                     artwork_height=self.artwork_height,
                 )
-                providers = get_providers(self.category, self.entry.options)
-                resolved = await resolve_cover(self._session, query, providers)
+
+                # §2.3 prios 2-8 — hierarchy dispatch driven by §7.1 sensors.
+                scenario = detect_scenario(
+                    state_attrs=state_attrs,
+                    tv_input_state=self._sensor_state_str(self._sensor_tv_input),
+                    discord_game_state=self._sensor_state_str(self._sensor_discord_game),
+                    stash_active_state=self._sensor_state_str(self._sensor_stash_active),
+                    channel_name=query.channel_name,
+                )
+                resolved = await resolve_hierarchy(
+                    session=self._session,
+                    scenario=scenario,
+                    query=query,
+                    options=self.entry.options,
+                    app_name=query.app_name or "",
+                    fallback_category=self.category,
+                )
             except Exception as err:  # noqa: BLE001
                 self._last_error = str(err)
                 _LOGGER.warning(
@@ -337,6 +450,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     2  – ``artwork_size`` replaced by separate ``artwork_width`` / ``artwork_height``.
     3  – Added category, display_name, ratio, fallback_mode, auto_priority;
          providers/ subpackage replaces old flat provider list.
+    4  – Renamed ratio presets to width-suffixed form (``1:1_2000`` etc.);
+         added ``create_wrapper`` flag for combined-only entries.
+    5  – Removed legacy ``delegate_entity`` key; introduced per-slot
+         ``combined_delegate_1..N``; backfilled ``epg_sensor`` default.
+    6  – Removed remaining ``delegate_entity`` artefacts; added
+         ``channel_icon`` and ``channel_name`` defaults on the wrapper.
     """
     current_version: int = entry.version
     _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)

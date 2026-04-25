@@ -31,7 +31,10 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "epg_sensor": "EPG sensor (optional)"
+          "epg_sensor": "EPG sensor (optional)",
+          "maw_sensor_tv_input": "Sensor: active TV source (§2.3)",
+          "maw_sensor_discord_game": "Sensor: Discord game (§2.3)",
+          "maw_sensor_stash_active": "Sensor: Stash active (§2.3, optional)"
         },
         "data_description": {
           "ratio": "Preset dimensions for the artwork image. Choose Custom to enter exact pixel values.",
@@ -44,7 +47,10 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork."
+          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork.",
+          "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Values: ps5/atv/live_tv/tv_on_idle/none — drives the §2.3 artwork hierarchy.",
+          "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numeric sensor (>0 = game active).",
+          "maw_sensor_stash_active": "§7.2 — does not exist yet. Leave empty or provide your own binary_sensor."
         }
       },
       "combined": {
@@ -71,7 +77,18 @@
           "combined_delegate_5": "Control entity (optional)",
           "combined_delegate_6": "Control entity (optional)",
           "combined_delegate_7": "Control entity (optional)",
-          "combined_delegate_8": "Control entity (optional)"
+          "combined_delegate_8": "Control entity (optional)",
+          "combined_role_1": "Slot 1 — role (CMP §2.2)",
+          "combined_role_2": "Slot 2 — role (CMP §2.2)",
+          "combined_role_3": "Slot 3 — role (CMP §2.2)",
+          "combined_role_4": "Slot 4 — role (CMP §2.2)",
+          "combined_role_5": "Slot 5 — role (CMP §2.2)",
+          "combined_role_6": "Slot 6 — role (CMP §2.2)",
+          "combined_role_7": "Slot 7 — role (CMP §2.2)",
+          "combined_role_8": "Slot 8 — role (CMP §2.2)",
+          "cmp_sensor_ps5_context": "Sensor: PS5 context active",
+          "cmp_sensor_homepods_music": "Sensor: HomePods playing music",
+          "cmp_sensor_homepods_active": "Sensor: HomePods active"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
@@ -86,7 +103,18 @@
           "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
-          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_role_1": "Role of this slot in the CMP priority table (§2.2). 'Other' = slot is not part of the scenario-based routing.",
+          "combined_role_2": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_3": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_4": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_5": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_6": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_7": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_8": "Role of this slot in the CMP priority table (§2.2).",
+          "cmp_sensor_ps5_context": "Default: binary_sensor.ps5_context_active_combined (§7.1).",
+          "cmp_sensor_homepods_music": "Default: binary_sensor.homepods_music_active (§7.1).",
+          "cmp_sensor_homepods_active": "Default: binary_sensor.homepods_active_atomic (§7.1)."
         }
       }
     },
@@ -122,7 +150,10 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "epg_sensor": "EPG sensor (optional)"
+          "epg_sensor": "EPG sensor (optional)",
+          "maw_sensor_tv_input": "Sensor: active TV source (§2.3)",
+          "maw_sensor_discord_game": "Sensor: Discord game (§2.3)",
+          "maw_sensor_stash_active": "Sensor: Stash active (§2.3, optional)"
         },
         "data_description": {
           "ratio": "Preset dimensions for the artwork image. Choose Custom to enter exact pixel values.",
@@ -135,7 +166,10 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork."
+          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork.",
+          "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Values: ps5/atv/live_tv/tv_on_idle/none — drives the §2.3 artwork hierarchy.",
+          "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numeric sensor (>0 = game active).",
+          "maw_sensor_stash_active": "§7.2 — does not exist yet. Leave empty or provide your own binary_sensor."
         }
       },
       "combined": {
@@ -162,7 +196,18 @@
           "combined_delegate_5": "Control entity (optional)",
           "combined_delegate_6": "Control entity (optional)",
           "combined_delegate_7": "Control entity (optional)",
-          "combined_delegate_8": "Control entity (optional)"
+          "combined_delegate_8": "Control entity (optional)",
+          "combined_role_1": "Slot 1 — role (CMP §2.2)",
+          "combined_role_2": "Slot 2 — role (CMP §2.2)",
+          "combined_role_3": "Slot 3 — role (CMP §2.2)",
+          "combined_role_4": "Slot 4 — role (CMP §2.2)",
+          "combined_role_5": "Slot 5 — role (CMP §2.2)",
+          "combined_role_6": "Slot 6 — role (CMP §2.2)",
+          "combined_role_7": "Slot 7 — role (CMP §2.2)",
+          "combined_role_8": "Slot 8 — role (CMP §2.2)",
+          "cmp_sensor_ps5_context": "Sensor: PS5 context active",
+          "cmp_sensor_homepods_music": "Sensor: HomePods playing music",
+          "cmp_sensor_homepods_active": "Sensor: HomePods active"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
@@ -178,7 +223,18 @@
           "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
-          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_role_1": "Role of this slot in the CMP priority table (§2.2). 'Other' = slot is not part of the scenario-based routing.",
+          "combined_role_2": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_3": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_4": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_5": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_6": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_7": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_8": "Role of this slot in the CMP priority table (§2.2).",
+          "cmp_sensor_ps5_context": "Default: binary_sensor.ps5_context_active_combined (§7.1).",
+          "cmp_sensor_homepods_music": "Default: binary_sensor.homepods_music_active (§7.1).",
+          "cmp_sensor_homepods_active": "Default: binary_sensor.homepods_active_atomic (§7.1)."
         }
       }
     }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.media_player import BrowseMedia, MediaPlayerEntity, MediaPlayerEntityFeature, MediaPlayerState
@@ -13,14 +14,28 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import CoverCoordinator, CoverData
 from .const import (
     CATEGORY_SORT_PRIORITY,
+    CMP_ROLE_ATV,
+    CMP_ROLE_HOMEPODS,
+    CMP_ROLE_OTHER,
+    CMP_ROLE_PS5,
+    CMP_ROLE_STASH,
+    CMP_ROLES,
+    COMBINED_NUM_SOURCE_SLOTS,
     CONF_AUTO_PRIORITY,
+    CONF_CMP_SENSOR_HOMEPODS_ACTIVE,
+    CONF_CMP_SENSOR_HOMEPODS_MUSIC,
+    CONF_CMP_SENSOR_PS5_CONTEXT,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_DELEGATE_PREFIX,
     CONF_COMBINED_NAME,
+    CONF_COMBINED_ROLE_PREFIX,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
     CONF_CREATE_WRAPPER,
     CONF_SOURCE_ENTITY_ID,
+    DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
+    DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC,
+    DEFAULT_CMP_SENSOR_PS5_CONTEXT,
     DOMAIN,
 )
 from .helpers import (
@@ -31,6 +46,17 @@ from .helpers import (
     active_entity_id as _active_entity_id_helper,
     safe_media_player_state as _safe_state,
     source_name,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+# §2.2 prio 5 — Stash is "active" for any non-OFF playback state.
+_STASH_ACTIVE_STATES: frozenset[MediaPlayerState] = frozenset(
+    {MediaPlayerState.PLAYING, MediaPlayerState.PAUSED, MediaPlayerState.IDLE}
+)
+# §2.2 prio 1 — ATV claims priority while playing or paused.
+_ATV_ACTIVE_STATES: frozenset[MediaPlayerState] = frozenset(
+    {MediaPlayerState.PLAYING, MediaPlayerState.PAUSED}
 )
 
 
@@ -44,6 +70,66 @@ def _get_combined_config(entry: ConfigEntry) -> tuple[bool, str, list[str], list
     audio: list[str] = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, data.get(CONF_COMBINED_AUDIO_SOURCES, [])))
     auto_priority = bool(opts.get(CONF_AUTO_PRIORITY, data.get(CONF_AUTO_PRIORITY, True)))
     return create, name, sources, audio, auto_priority
+
+
+def _get_cmp_sensor_config(entry: ConfigEntry) -> dict[str, str]:
+    """Return §7.1 sensor entity_ids used by the §2.2 priority resolver.
+
+    Defaults match LASTENHEFT §7.1 so an out-of-the-box setup needs no
+    configuration; user can override via OptionsFlow.
+    """
+    opts = entry.options
+    data = entry.data
+    return {
+        CONF_CMP_SENSOR_PS5_CONTEXT: str(
+            opts.get(
+                CONF_CMP_SENSOR_PS5_CONTEXT,
+                data.get(CONF_CMP_SENSOR_PS5_CONTEXT, DEFAULT_CMP_SENSOR_PS5_CONTEXT),
+            )
+        ).strip(),
+        CONF_CMP_SENSOR_HOMEPODS_MUSIC: str(
+            opts.get(
+                CONF_CMP_SENSOR_HOMEPODS_MUSIC,
+                data.get(CONF_CMP_SENSOR_HOMEPODS_MUSIC, DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC),
+            )
+        ).strip(),
+        CONF_CMP_SENSOR_HOMEPODS_ACTIVE: str(
+            opts.get(
+                CONF_CMP_SENSOR_HOMEPODS_ACTIVE,
+                data.get(CONF_CMP_SENSOR_HOMEPODS_ACTIVE, DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE),
+            )
+        ).strip(),
+    }
+
+
+def _build_role_map(
+    entry: ConfigEntry,
+    combined_sources: list[str],
+    display_sources: list[str],
+) -> dict[str, str]:
+    """Map display source entity_id → role string per CONF_COMBINED_ROLE_PREFIX.
+
+    *combined_sources* is the wrapper-entity list from options (slot order
+    1..8). *display_sources* is the resolved underlying media_player list
+    in the same slot order (output of _resolve_combined_sources).
+    Slots without a stored role default to CMP_ROLE_OTHER.
+    """
+    opts = entry.options
+    data = entry.data
+    role_map: dict[str, str] = {}
+    for idx, wrapper in enumerate(combined_sources, start=1):
+        if idx > COMBINED_NUM_SOURCE_SLOTS:
+            break
+        if idx - 1 >= len(display_sources):
+            break
+        display = display_sources[idx - 1]
+        key = f"{CONF_COMBINED_ROLE_PREFIX}{idx}"
+        raw = opts.get(key, data.get(key, CMP_ROLE_OTHER))
+        role = str(raw).strip().lower() if isinstance(raw, str) else CMP_ROLE_OTHER
+        if role not in CMP_ROLES:
+            role = CMP_ROLE_OTHER
+        role_map[display] = role
+    return role_map
 
 
 def _sort_sources_by_category(
@@ -115,6 +201,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             combined_sources = sorted(set(discovered))
         if combined_sources:
             display_sources, auto_audio_sources = _resolve_combined_sources(hass, combined_sources)
+            # Build role map BEFORE auto-priority re-sort so slot indices align
+            # with combined_sources / display_sources slot order.
+            role_map = _build_role_map(entry, combined_sources, display_sources)
             if auto_priority:
                 display_sources = _sort_sources_by_category(display_sources, hass)
             control_sources = combined_audio or auto_audio_sources
@@ -126,7 +215,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 resolved_display, _ = _resolve_combined_sources(hass, [wrapper])
                 if resolved_display:
                     slot_delegate_map[resolved_display[0]] = delegate.strip()
-            entities.append(CombinedMediaPlayer(hass, entry, display_sources, control_sources, combined_name, slot_delegate_map))
+            sensors = _get_cmp_sensor_config(entry)
+            entities.append(
+                CombinedMediaPlayer(
+                    hass,
+                    entry,
+                    display_sources,
+                    control_sources,
+                    combined_name,
+                    slot_delegate_map,
+                    role_map=role_map,
+                    sensors=sensors,
+                )
+            )
 
     async_add_entities(entities, update_before_add=False)
 
@@ -441,6 +542,9 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         audio_sources: list[str],
         name: str,
         slot_delegate_map: dict[str, str] | None = None,
+        *,
+        role_map: dict[str, str] | None = None,
+        sensors: dict[str, str] | None = None,
     ) -> None:
         self.hass = hass
         self._entry = entry
@@ -451,13 +555,41 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         self._slot_delegate_map = dict(slot_delegate_map or {})
         self._unsub: Any | None = None
 
+        # §2.2 — role-based priority resolution
+        self._role_map = dict(role_map or {})  # display entity_id → role
+        self._role_to_entity: dict[str, str] = {}
+        for entity_id, role in self._role_map.items():
+            # First slot wins per role; later slots with the same role are ignored.
+            self._role_to_entity.setdefault(role, entity_id)
+        self._has_role_config = any(
+            r != CMP_ROLE_OTHER for r in self._role_map.values()
+        )
+
+        sensors = sensors or {}
+        self._sensor_ps5_context = sensors.get(CONF_CMP_SENSOR_PS5_CONTEXT, "")
+        self._sensor_homepods_music = sensors.get(CONF_CMP_SENSOR_HOMEPODS_MUSIC, "")
+        self._sensor_homepods_active = sensors.get(CONF_CMP_SENSOR_HOMEPODS_ACTIVE, "")
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
+    def _tracked_sensor_ids(self) -> list[str]:
+        """Sensor entity_ids that affect §2.2 priority resolution."""
+        return [
+            s for s in (
+                self._sensor_ps5_context,
+                self._sensor_homepods_music,
+                self._sensor_homepods_active,
+            )
+            if s
+        ]
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        all_tracked = list(dict.fromkeys(self._sources + self._audio_sources))
+        all_tracked = list(dict.fromkeys(
+            self._sources + self._audio_sources + self._tracked_sensor_ids()
+        ))
         self._unsub = async_track_state_change_event(
             self.hass, all_tracked, self._handle_state_change
         )
@@ -476,8 +608,84 @@ class CombinedMediaPlayer(MediaPlayerEntity):
     # Priority resolution
     # ------------------------------------------------------------------
 
+    def _sensor_on(self, sensor_entity_id: str) -> bool:
+        """Return True when *sensor_entity_id* state is on/true/1/playing."""
+        if not sensor_entity_id:
+            return False
+        state = self.hass.states.get(sensor_entity_id)
+        if state is None:
+            return False
+        raw = str(state.state).strip().lower()
+        return raw in {"on", "true", "1", "playing", "active"}
+
+    def _state_for(self, entity_id: str | None) -> MediaPlayerState | None:
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return None
+        return _safe_state(state.state)
+
+    def _resolve_active_role(self) -> tuple[str | None, str | None] | None:
+        """§2.2 priority resolver.
+
+        Returns:
+        - ``None`` when no role tags are configured — caller must fall back to
+          the legacy generic-tier logic for backward compatibility.
+        - ``(role, entity_id)`` for §2.2 prios 1, 2 and 5 (a controllable
+          player is active).
+        - ``(None, None)`` for §2.2 prios 3 and 4 (context active but no
+          controllable transport).
+        """
+        if not self._has_role_config:
+            return None
+
+        atv = self._role_to_entity.get(CMP_ROLE_ATV)
+        homepods = self._role_to_entity.get(CMP_ROLE_HOMEPODS)
+        stash = self._role_to_entity.get(CMP_ROLE_STASH)
+
+        # Prio 1 — Apple TV playing/paused
+        if atv:
+            s = self._state_for(atv)
+            if s is not None and s in _ATV_ACTIVE_STATES:
+                return CMP_ROLE_ATV, atv
+
+        ps5_context = self._sensor_on(self._sensor_ps5_context)
+        homepods_music = self._sensor_on(self._sensor_homepods_music)
+        homepods_active = self._sensor_on(self._sensor_homepods_active)
+
+        # Prio 2 — HomePods music only (no PS5 context)
+        if homepods and homepods_music and not ps5_context:
+            return CMP_ROLE_HOMEPODS, homepods
+
+        # Prio 3 — PS5 + HomePods dual scenario
+        # OUT OF SCOPE per §10 / §2.2; no controllable transport in this version.
+        # TODO §2.2 prio 3: enable HomePods-as-audio + PS5-as-context once the
+        # CEC-shutdown / simultaneous HomePod activation automation lands.
+        if ps5_context and homepods_active:
+            return None, None
+
+        # Prio 4 — PS5 active, HomePods off → no controllable transport
+        if ps5_context and not homepods_active:
+            return None, None
+
+        # Prio 5 — Stash active
+        if stash:
+            s = self._state_for(stash)
+            if s is not None and s in _STASH_ACTIVE_STATES:
+                return CMP_ROLE_STASH, stash
+
+        return None, None
+
     def _active_state(self) -> State | None:
         """Return the state of the highest-priority active display source."""
+        resolved = self._resolve_active_role()
+        if resolved is not None:
+            _role, entity_id = resolved
+            if entity_id is None:
+                return None
+            return self.hass.states.get(entity_id)
+        # Legacy generic-tier fallback (no roles configured)
         for tier in (_TIER1, _TIER2, _TIER3):
             for sid in self._sources:
                 state = self.hass.states.get(sid)
@@ -489,6 +697,10 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         return None
 
     def _active_entity_id(self) -> str | None:
+        resolved = self._resolve_active_role()
+        if resolved is not None:
+            _role, entity_id = resolved
+            return entity_id
         return _active_entity_id_helper(self.hass, self._sources)
 
     def _active_audio_entity_id(self) -> str | None:
@@ -496,6 +708,10 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         active_display = self._active_entity_id()
         if active_display:
             return self._slot_delegate_map.get(active_display, active_display)
+        # In §2.2 mode (role config present), no audio fallback when resolver
+        # blocked transport — that's the intended prio 3/4 behaviour.
+        if self._has_role_config:
+            return None
         for tier in (_TIER1, _TIER2, _TIER3):
             for sid in self._audio_sources:
                 state = self.hass.states.get(sid)
@@ -525,6 +741,11 @@ class CombinedMediaPlayer(MediaPlayerEntity):
     def state(self) -> MediaPlayerState:
         active = self._active_state()
         if active is None:
+            # §2.2 prio 3/4 — context active (e.g. PS5) but no controllable
+            # transport. Surface ON so dashboards reflect "something is on"
+            # even though play/pause is unavailable.
+            if self._has_role_config and self._sensor_on(self._sensor_ps5_context):
+                return MediaPlayerState.ON
             return MediaPlayerState.OFF
         s = _safe_state(active.state)
         if s in _TIER1:
@@ -710,6 +931,10 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         if self._audio_sources:
             attrs["active_audio_source"] = self._active_audio_entity_id()
             attrs["audio_sources"] = self._audio_sources
+        if self._has_role_config:
+            resolved = self._resolve_active_role()
+            attrs["active_role"] = resolved[0] if resolved else None
+            attrs["role_map"] = self._role_map
         return attrs
 
     # ------------------------------------------------------------------
@@ -720,6 +945,12 @@ class CombinedMediaPlayer(MediaPlayerEntity):
         """Forward a service call to the audio source (preferred) or display source."""
         target = self._active_audio_entity_id() or self._active_entity_id()
         if target is None:
+            # §2.2 prio 3/4 — no controllable player active; transport is a no-op.
+            _LOGGER.debug(
+                "CMP %s: %s ignored — no controllable player active (prio 3/4)",
+                self.entity_id or self._attr_unique_id,
+                service,
+            )
             return
         await self.hass.services.async_call(
             "media_player",

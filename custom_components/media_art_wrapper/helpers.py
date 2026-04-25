@@ -20,7 +20,8 @@ FALLBACK_IMAGE = base64.b64decode(
 _LOGO_DIR = os.path.join(os.path.dirname(__file__), "icons", "services")
 
 # app_name / category keyword → PNG filename stem (without extension)
-# Keys are lowercased for case-insensitive matching.
+# Keys are lowercased for case-insensitive matching. All listed stems must
+# correspond to an existing PNG under icons/services/ — see LASTENHEFT §8.2.
 _SERVICE_LOGO_MAP: dict[str, str] = {
     # Music streaming
     "apple music":      "apple_music",
@@ -28,8 +29,6 @@ _SERVICE_LOGO_MAP: dict[str, str] = {
     "tidal":            "tidal",
     "youtube music":    "youtube_music",
     "amazon music":     "amazon_music",
-    "deezer":           "deezer",
-    "soundcloud":       "soundcloud",
     # Video streaming
     "netflix":          "netflix",
     "disney+":          "disney_plus",
@@ -40,23 +39,12 @@ _SERVICE_LOGO_MAP: dict[str, str] = {
     "prime video":      "amazon_prime",
     "hbo max":          "hbo_max",
     "max":              "hbo_max",
-    "hulu":             "hulu",
-    "peacock":          "peacock",
-    "paramount+":       "paramount_plus",
-    "youtube":          "youtube",
-    "youtube tv":       "youtube_tv",
-    "twitch":           "twitch",
     # Gaming platforms
     "playstation":      "playstation",
     "xbox":             "xbox",
     "steam":            "steam",
     "epic games":       "epic_games",
     "epic":             "epic_games",
-    "gog":              "gog",
-    # Podcasts / radio
-    "pocket casts":     "pocket_casts",
-    "overcast":         "overcast",
-    "castro":           "castro",
 }
 
 

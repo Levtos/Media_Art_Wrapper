@@ -23,6 +23,7 @@ CATEGORY_STREAMING = "streaming"
 CATEGORY_GAMING = "gaming"
 CATEGORY_TV = "tv"
 CATEGORY_AUTO = "auto"
+CATEGORY_ADULT = "adult"
 
 CATEGORIES = [CATEGORY_MUSIC, CATEGORY_STREAMING, CATEGORY_GAMING, CATEGORY_TV, CATEGORY_AUTO]
 
@@ -88,6 +89,11 @@ PROVIDER_STEAMGRIDDB = "steamgriddb"
 PROVIDER_STEAM = "steam"          # no-key fallback (Steam Store search)
 PROVIDER_TVMAZE = "tvmaze"
 PROVIDER_FANART = "fanart"
+# Adult content providers — wired in by Schritt 7 (§3.2 / §6).
+PROVIDER_STASH = "stash"
+PROVIDER_STASHDB = "stashdb"
+PROVIDER_PORNDB = "porndb"
+PROVIDER_AEBN = "aebn"
 # Legacy provider keys (kept for migration compatibility)
 PROVIDER_TV = "tv"
 
@@ -99,6 +105,8 @@ CATEGORY_PROVIDERS: dict[str, list[str]] = {
     CATEGORY_STREAMING: [PROVIDER_TMDB],
     CATEGORY_GAMING: [PROVIDER_IGDB, PROVIDER_STEAMGRIDDB, PROVIDER_STEAM],
     CATEGORY_TV: [PROVIDER_TVMAZE, PROVIDER_TMDB, PROVIDER_FANART],
+    # §6.4 Stash priority — provider classes wired in Schritt 7/10
+    CATEGORY_ADULT: [PROVIDER_STASH, PROVIDER_STASHDB, PROVIDER_PORNDB, PROVIDER_AEBN],
     CATEGORY_AUTO: [
         PROVIDER_ITUNES,
         PROVIDER_MUSICBRAINZ,
@@ -138,6 +146,31 @@ CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; k
 CONF_EPG_SENSOR = "epg_sensor"
 
 # ---------------------------------------------------------------------------
+# §2.3 Artwork-hierarchy detector sensors (per §7.1)
+# ---------------------------------------------------------------------------
+# Drive scenario detection in the MAW coordinator. Defaults match LASTENHEFT
+# §7.1 so an out-of-the-box setup needs no extra configuration.
+CONF_MAW_SENSOR_TV_INPUT = "maw_sensor_tv_input"
+CONF_MAW_SENSOR_DISCORD_GAME = "maw_sensor_discord_game"
+CONF_MAW_SENSOR_STASH_ACTIVE = "maw_sensor_stash_active"
+
+DEFAULT_MAW_SENSOR_TV_INPUT = "sensor.tv_active_input"
+DEFAULT_MAW_SENSOR_DISCORD_GAME = "sensor.discord_active_game_atomic"
+# §7.2 — sensor planned but does not exist yet; default to empty so the
+# detector silently skips the Stash branch until the user wires one in.
+DEFAULT_MAW_SENSOR_STASH_ACTIVE = ""
+
+# §2.3 scenario classifier values (returned by hierarchy.detect_scenario).
+SCENARIO_NATIVE = "native"
+SCENARIO_ATV_NO_TITLE = "atv_no_title"
+SCENARIO_ATV_TITLE = "atv_title"
+SCENARIO_GAME = "game"
+SCENARIO_STASH = "stash"
+SCENARIO_TV_IN_LIST = "tv_in_list"
+SCENARIO_TV_OUT_OF_LIST = "tv_out_of_list"
+SCENARIO_FALLBACK = "fallback"
+
+# ---------------------------------------------------------------------------
 # Combined Player
 # ---------------------------------------------------------------------------
 CONF_CREATE_WRAPPER = "create_wrapper"
@@ -148,6 +181,34 @@ CONF_COMBINED_AUDIO_SOURCES = "combined_audio_sources"
 CONF_AUTO_PRIORITY = "auto_priority"
 COMBINED_NUM_SOURCE_SLOTS = 8
 CONF_COMBINED_DELEGATE_PREFIX = "combined_delegate_"
+
+# Per-slot role tag for §2.2 scenario-based priority resolution.
+# Slot index 1..COMBINED_NUM_SOURCE_SLOTS; values must be one of CMP_ROLES.
+CONF_COMBINED_ROLE_PREFIX = "combined_role_"
+
+CMP_ROLE_ATV = "atv"
+CMP_ROLE_HOMEPODS = "homepods"
+CMP_ROLE_PS5 = "ps5"
+CMP_ROLE_STASH = "stash"
+CMP_ROLE_OTHER = "other"
+
+CMP_ROLES: list[str] = [
+    CMP_ROLE_ATV,
+    CMP_ROLE_HOMEPODS,
+    CMP_ROLE_PS5,
+    CMP_ROLE_STASH,
+    CMP_ROLE_OTHER,
+]
+
+# Context sensor ids used by §2.2 priority resolver. Defaults match §7.1
+# (already-existing sensors in the user's HA setup); override-capable.
+CONF_CMP_SENSOR_PS5_CONTEXT = "cmp_sensor_ps5_context"
+CONF_CMP_SENSOR_HOMEPODS_MUSIC = "cmp_sensor_homepods_music"
+CONF_CMP_SENSOR_HOMEPODS_ACTIVE = "cmp_sensor_homepods_active"
+
+DEFAULT_CMP_SENSOR_PS5_CONTEXT = "binary_sensor.ps5_context_active_combined"
+DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC = "binary_sensor.homepods_music_active"
+DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE = "binary_sensor.homepods_active_atomic"
 
 # ---------------------------------------------------------------------------
 # EPG — Channel classification

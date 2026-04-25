@@ -71,7 +71,18 @@
           "combined_delegate_5": "Control entity (optional)",
           "combined_delegate_6": "Control entity (optional)",
           "combined_delegate_7": "Control entity (optional)",
-          "combined_delegate_8": "Control entity (optional)"
+          "combined_delegate_8": "Control entity (optional)",
+          "combined_role_1": "Slot 1 — role (CMP §2.2)",
+          "combined_role_2": "Slot 2 — role (CMP §2.2)",
+          "combined_role_3": "Slot 3 — role (CMP §2.2)",
+          "combined_role_4": "Slot 4 — role (CMP §2.2)",
+          "combined_role_5": "Slot 5 — role (CMP §2.2)",
+          "combined_role_6": "Slot 6 — role (CMP §2.2)",
+          "combined_role_7": "Slot 7 — role (CMP §2.2)",
+          "combined_role_8": "Slot 8 — role (CMP §2.2)",
+          "cmp_sensor_ps5_context": "Sensor: PS5 context active",
+          "cmp_sensor_homepods_music": "Sensor: HomePods playing music",
+          "cmp_sensor_homepods_active": "Sensor: HomePods active"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
@@ -86,7 +97,18 @@
           "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
-          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_role_1": "Role of this slot in the CMP priority table (§2.2). 'Other' = slot is not part of the scenario-based routing.",
+          "combined_role_2": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_3": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_4": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_5": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_6": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_7": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_8": "Role of this slot in the CMP priority table (§2.2).",
+          "cmp_sensor_ps5_context": "Default: binary_sensor.ps5_context_active_combined (§7.1).",
+          "cmp_sensor_homepods_music": "Default: binary_sensor.homepods_music_active (§7.1).",
+          "cmp_sensor_homepods_active": "Default: binary_sensor.homepods_active_atomic (§7.1)."
         }
       }
     },
@@ -162,7 +184,18 @@
           "combined_delegate_5": "Control entity (optional)",
           "combined_delegate_6": "Control entity (optional)",
           "combined_delegate_7": "Control entity (optional)",
-          "combined_delegate_8": "Control entity (optional)"
+          "combined_delegate_8": "Control entity (optional)",
+          "combined_role_1": "Slot 1 — role (CMP §2.2)",
+          "combined_role_2": "Slot 2 — role (CMP §2.2)",
+          "combined_role_3": "Slot 3 — role (CMP §2.2)",
+          "combined_role_4": "Slot 4 — role (CMP §2.2)",
+          "combined_role_5": "Slot 5 — role (CMP §2.2)",
+          "combined_role_6": "Slot 6 — role (CMP §2.2)",
+          "combined_role_7": "Slot 7 — role (CMP §2.2)",
+          "combined_role_8": "Slot 8 — role (CMP §2.2)",
+          "cmp_sensor_ps5_context": "Sensor: PS5 context active",
+          "cmp_sensor_homepods_music": "Sensor: HomePods playing music",
+          "cmp_sensor_homepods_active": "Sensor: HomePods active"
         },
         "data_description": {
           "create_combined": "When enabled, creates a virtual media_player entity and a cover image entity aggregating the sources below.",
@@ -178,7 +211,18 @@
           "combined_delegate_5": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_6": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
           "combined_delegate_7": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
-          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control."
+          "combined_delegate_8": "If set, browse, queue and control commands are forwarded to this entity. Useful for Music Assistant with HomePods or native PS5 control.",
+          "combined_role_1": "Role of this slot in the CMP priority table (§2.2). 'Other' = slot is not part of the scenario-based routing.",
+          "combined_role_2": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_3": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_4": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_5": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_6": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_7": "Role of this slot in the CMP priority table (§2.2).",
+          "combined_role_8": "Role of this slot in the CMP priority table (§2.2).",
+          "cmp_sensor_ps5_context": "Default: binary_sensor.ps5_context_active_combined (§7.1).",
+          "cmp_sensor_homepods_music": "Default: binary_sensor.homepods_music_active (§7.1).",
+          "cmp_sensor_homepods_active": "Default: binary_sensor.homepods_active_atomic (§7.1)."
         }
       }
     }

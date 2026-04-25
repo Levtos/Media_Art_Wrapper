@@ -15,14 +15,24 @@ from .const import (
     CATEGORY_MUSIC,
     CATEGORY_STREAMING,
     CATEGORY_TV,
+    CMP_ROLE_ATV,
+    CMP_ROLE_HOMEPODS,
+    CMP_ROLE_OTHER,
+    CMP_ROLE_PS5,
+    CMP_ROLE_STASH,
+    CMP_ROLES,
     COMBINED_NUM_SOURCE_SLOTS,
     CONF_AUTO_PRIORITY,
     CONF_ARTWORK_HEIGHT,
     CONF_ARTWORK_WIDTH,
     CONF_CATEGORY,
+    CONF_CMP_SENSOR_HOMEPODS_ACTIVE,
+    CONF_CMP_SENSOR_HOMEPODS_MUSIC,
+    CONF_CMP_SENSOR_PS5_CONTEXT,
     CONF_COMBINED_AUDIO_SOURCES,
     CONF_COMBINED_DELEGATE_PREFIX,
     CONF_COMBINED_NAME,
+    CONF_COMBINED_ROLE_PREFIX,
     CONF_COMBINED_SOURCES,
     CONF_CREATE_COMBINED,
     CONF_CREATE_WRAPPER,
@@ -39,6 +49,9 @@ from .const import (
     CONF_EPG_SENSOR,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_WIDTH,
+    DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
+    DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC,
+    DEFAULT_CMP_SENSOR_PS5_CONTEXT,
     DEFAULT_RATIO,
     DOMAIN,
     FALLBACK_CUSTOM_URL_MODE,
@@ -77,6 +90,24 @@ _FALLBACK_OPTIONS = [
 
 _COMBINED_SLOT_KEYS = [f"combined_source_{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
 _COMBINED_DELEGATE_KEYS = [f"{CONF_COMBINED_DELEGATE_PREFIX}{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
+_COMBINED_ROLE_KEYS = [f"{CONF_COMBINED_ROLE_PREFIX}{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
+_CMP_SENSOR_KEYS = (
+    CONF_CMP_SENSOR_PS5_CONTEXT,
+    CONF_CMP_SENSOR_HOMEPODS_MUSIC,
+    CONF_CMP_SENSOR_HOMEPODS_ACTIVE,
+)
+_CMP_SENSOR_DEFAULTS = {
+    CONF_CMP_SENSOR_PS5_CONTEXT: DEFAULT_CMP_SENSOR_PS5_CONTEXT,
+    CONF_CMP_SENSOR_HOMEPODS_MUSIC: DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC,
+    CONF_CMP_SENSOR_HOMEPODS_ACTIVE: DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
+}
+_ROLE_OPTIONS = [
+    {"value": CMP_ROLE_OTHER, "label": "Other / context only"},
+    {"value": CMP_ROLE_ATV, "label": "Apple TV"},
+    {"value": CMP_ROLE_HOMEPODS, "label": "HomePods (via Music Assistant)"},
+    {"value": CMP_ROLE_PS5, "label": "PlayStation 5"},
+    {"value": CMP_ROLE_STASH, "label": "Stash"},
+]
 _PREVIEW_KEY = "combined_auto_order_preview"
 _NO_MAW_INFO = "combined_no_maw_info"
 CONF_ENTITY_KIND = "entity_kind"
@@ -249,16 +280,35 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
             selector.SelectSelectorConfig(options=maw_sources, multiple=False, mode=selector.SelectSelectorMode.DROPDOWN)
         )
         delegate_selector = _ENTITY_SEL
+        role_selector = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=_ROLE_OPTIONS, multiple=False, mode=selector.SelectSelectorMode.DROPDOWN)
+        )
         for idx, key in enumerate(_COMBINED_SLOT_KEYS, start=1):
             existing = slot_defaults.get(key)
             fields[vol.Optional(key, default=existing)] = slot_selector
             delegate_key = f"{CONF_COMBINED_DELEGATE_PREFIX}{idx}"
             fields[vol.Optional(delegate_key, default=opts.get(delegate_key))] = delegate_selector
+            role_key = f"{CONF_COMBINED_ROLE_PREFIX}{idx}"
+            role_default = opts.get(role_key, CMP_ROLE_OTHER)
+            if role_default not in CMP_ROLES:
+                role_default = CMP_ROLE_OTHER
+            fields[vol.Optional(role_key, default=role_default)] = role_selector
 
     default_audio = list(opts.get(CONF_COMBINED_AUDIO_SOURCES, []))
     if not default_audio and chosen_sources:
         default_audio = [control_map[s] for s in chosen_sources if control_map.get(s)]
     fields[vol.Optional(CONF_COMBINED_AUDIO_SOURCES, default=default_audio)] = _MULTI_ENTITY_SEL
+
+    # §7.1 context sensors used by the §2.2 priority resolver. Only meaningful
+    # when at least one slot has a role tag (manual mode); shown there so users
+    # can override the LASTENHEFT-default sensor entity_ids.
+    if not auto_priority:
+        sensor_selector = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=["binary_sensor", "sensor"], multiple=False)
+        )
+        for sensor_key in _CMP_SENSOR_KEYS:
+            default = opts.get(sensor_key, _CMP_SENSOR_DEFAULTS[sensor_key])
+            fields[vol.Optional(sensor_key, default=default)] = sensor_selector
 
     return vol.Schema(fields)
 
@@ -414,6 +464,11 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_COMBINED_AUDIO_SOURCES: list(draft.get(CONF_COMBINED_AUDIO_SOURCES) or []),
                     CONF_AUTO_PRIORITY: auto_priority,
                     **{k: draft.get(k) for k in _COMBINED_DELEGATE_KEYS},
+                    **{k: draft.get(k, CMP_ROLE_OTHER) for k in _COMBINED_ROLE_KEYS},
+                    **{
+                        k: draft.get(k, _CMP_SENSOR_DEFAULTS[k])
+                        for k in _CMP_SENSOR_KEYS
+                    },
                 }
                 options.pop(CONF_SOURCE_ENTITY_ID, None)
                 return self.async_create_entry(title=title, data=data, options=options)
@@ -528,6 +583,14 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                     CONF_COMBINED_AUDIO_SOURCES: list(draft.get(CONF_COMBINED_AUDIO_SOURCES) or []),
                     CONF_AUTO_PRIORITY: auto_priority,
                     **{k: draft.get(k) for k in _COMBINED_DELEGATE_KEYS},
+                    **{
+                        k: draft.get(k, opts.get(k, CMP_ROLE_OTHER))
+                        for k in _COMBINED_ROLE_KEYS
+                    },
+                    **{
+                        k: draft.get(k, opts.get(k, _CMP_SENSOR_DEFAULTS[k]))
+                        for k in _CMP_SENSOR_KEYS
+                    },
                 }
                 return self.async_create_entry(title="", data=new_options)
             self._combined_opts = draft

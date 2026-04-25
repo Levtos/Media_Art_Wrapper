@@ -149,6 +149,34 @@ CONF_AUTO_PRIORITY = "auto_priority"
 COMBINED_NUM_SOURCE_SLOTS = 8
 CONF_COMBINED_DELEGATE_PREFIX = "combined_delegate_"
 
+# Per-slot role tag for §2.2 scenario-based priority resolution.
+# Slot index 1..COMBINED_NUM_SOURCE_SLOTS; values must be one of CMP_ROLES.
+CONF_COMBINED_ROLE_PREFIX = "combined_role_"
+
+CMP_ROLE_ATV = "atv"
+CMP_ROLE_HOMEPODS = "homepods"
+CMP_ROLE_PS5 = "ps5"
+CMP_ROLE_STASH = "stash"
+CMP_ROLE_OTHER = "other"
+
+CMP_ROLES: list[str] = [
+    CMP_ROLE_ATV,
+    CMP_ROLE_HOMEPODS,
+    CMP_ROLE_PS5,
+    CMP_ROLE_STASH,
+    CMP_ROLE_OTHER,
+]
+
+# Context sensor ids used by §2.2 priority resolver. Defaults match §7.1
+# (already-existing sensors in the user's HA setup); override-capable.
+CONF_CMP_SENSOR_PS5_CONTEXT = "cmp_sensor_ps5_context"
+CONF_CMP_SENSOR_HOMEPODS_MUSIC = "cmp_sensor_homepods_music"
+CONF_CMP_SENSOR_HOMEPODS_ACTIVE = "cmp_sensor_homepods_active"
+
+DEFAULT_CMP_SENSOR_PS5_CONTEXT = "binary_sensor.ps5_context_active_combined"
+DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC = "binary_sensor.homepods_music_active"
+DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE = "binary_sensor.homepods_active_atomic"
+
 # ---------------------------------------------------------------------------
 # EPG — Channel classification
 # ---------------------------------------------------------------------------

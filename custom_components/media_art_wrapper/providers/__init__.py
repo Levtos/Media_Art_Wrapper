@@ -42,11 +42,39 @@ __all__ = [
     "ArtworkProvider",
     "ArtworkQuery",
     "ArtworkResult",
+    "build_provider_instances",
     "get_providers",
     "resolve_cover",
 ]
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def build_provider_instances(options: dict[str, Any]) -> dict[str, ArtworkProvider]:
+    """Instantiate every known provider keyed by its provider name.
+
+    Used by both ``get_providers`` (category-based selection) and the §2.3
+    hierarchy dispatcher (custom per-scenario chains). Providers whose
+    credentials are missing are still returned — callers must filter on
+    ``is_available()``.
+
+    TODO Schritt 7 (§3.2 / §6): wire StashClient, StashDBProvider,
+    PornDBProvider and AEBNProvider — keys "stash", "stashdb", "porndb",
+    "aebn" are already routed via CATEGORY_PROVIDERS[CATEGORY_ADULT].
+    """
+    return {
+        "itunes": ITunesProvider(),
+        "musicbrainz": MusicBrainzProvider(),
+        "tmdb": TMDbProvider(options.get(CONF_TMDB_API_KEY, "")),
+        "igdb": IGDBProvider(
+            options.get(CONF_IGDB_CLIENT_ID, ""),
+            options.get(CONF_IGDB_CLIENT_SECRET, ""),
+        ),
+        "steamgriddb": SteamGridDBProvider(options.get(CONF_STEAMGRIDDB_API_KEY, "")),
+        "steam": SteamProvider(),
+        "tvmaze": TVMazeProvider(),
+        "fanart": FanartTvProvider(options.get(CONF_FANART_API_KEY, "")),
+    }
 
 
 def get_providers(
@@ -61,24 +89,7 @@ def get_providers(
     The order follows ``CATEGORY_PROVIDERS[category]``.
     """
     wanted: list[str] = CATEGORY_PROVIDERS.get(category, CATEGORY_PROVIDERS[CATEGORY_AUTO])
-
-    # Build all provider instances (keyed by provider name).
-    # TODO Schritt 7 (§3.2 / §6): wire StashClient, StashDBProvider,
-    # PornDBProvider and AEBNProvider — keys "stash", "stashdb", "porndb",
-    # "aebn" are already routed via CATEGORY_PROVIDERS[CATEGORY_ADULT].
-    all_instances: dict[str, ArtworkProvider] = {
-        "itunes": ITunesProvider(),
-        "musicbrainz": MusicBrainzProvider(),
-        "tmdb": TMDbProvider(options.get(CONF_TMDB_API_KEY, "")),
-        "igdb": IGDBProvider(
-            options.get(CONF_IGDB_CLIENT_ID, ""),
-            options.get(CONF_IGDB_CLIENT_SECRET, ""),
-        ),
-        "steamgriddb": SteamGridDBProvider(options.get(CONF_STEAMGRIDDB_API_KEY, "")),
-        "steam": SteamProvider(),
-        "tvmaze": TVMazeProvider(),
-        "fanart": FanartTvProvider(options.get(CONF_FANART_API_KEY, "")),
-    }
+    all_instances = build_provider_instances(options)
 
     result: list[ArtworkProvider] = []
     for name in wanted:

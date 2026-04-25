@@ -23,6 +23,7 @@ CATEGORY_STREAMING = "streaming"
 CATEGORY_GAMING = "gaming"
 CATEGORY_TV = "tv"
 CATEGORY_AUTO = "auto"
+CATEGORY_ADULT = "adult"
 
 CATEGORIES = [CATEGORY_MUSIC, CATEGORY_STREAMING, CATEGORY_GAMING, CATEGORY_TV, CATEGORY_AUTO]
 
@@ -88,6 +89,11 @@ PROVIDER_STEAMGRIDDB = "steamgriddb"
 PROVIDER_STEAM = "steam"          # no-key fallback (Steam Store search)
 PROVIDER_TVMAZE = "tvmaze"
 PROVIDER_FANART = "fanart"
+# Adult content providers — wired in by Schritt 7 (§3.2 / §6).
+PROVIDER_STASH = "stash"
+PROVIDER_STASHDB = "stashdb"
+PROVIDER_PORNDB = "porndb"
+PROVIDER_AEBN = "aebn"
 # Legacy provider keys (kept for migration compatibility)
 PROVIDER_TV = "tv"
 
@@ -99,6 +105,8 @@ CATEGORY_PROVIDERS: dict[str, list[str]] = {
     CATEGORY_STREAMING: [PROVIDER_TMDB],
     CATEGORY_GAMING: [PROVIDER_IGDB, PROVIDER_STEAMGRIDDB, PROVIDER_STEAM],
     CATEGORY_TV: [PROVIDER_TVMAZE, PROVIDER_TMDB, PROVIDER_FANART],
+    # §6.4 Stash priority — provider classes wired in Schritt 7/10
+    CATEGORY_ADULT: [PROVIDER_STASH, PROVIDER_STASHDB, PROVIDER_PORNDB, PROVIDER_AEBN],
     CATEGORY_AUTO: [
         PROVIDER_ITUNES,
         PROVIDER_MUSICBRAINZ,
@@ -136,6 +144,31 @@ CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
+
+# ---------------------------------------------------------------------------
+# §2.3 Artwork-hierarchy detector sensors (per §7.1)
+# ---------------------------------------------------------------------------
+# Drive scenario detection in the MAW coordinator. Defaults match LASTENHEFT
+# §7.1 so an out-of-the-box setup needs no extra configuration.
+CONF_MAW_SENSOR_TV_INPUT = "maw_sensor_tv_input"
+CONF_MAW_SENSOR_DISCORD_GAME = "maw_sensor_discord_game"
+CONF_MAW_SENSOR_STASH_ACTIVE = "maw_sensor_stash_active"
+
+DEFAULT_MAW_SENSOR_TV_INPUT = "sensor.tv_active_input"
+DEFAULT_MAW_SENSOR_DISCORD_GAME = "sensor.discord_active_game_atomic"
+# §7.2 — sensor planned but does not exist yet; default to empty so the
+# detector silently skips the Stash branch until the user wires one in.
+DEFAULT_MAW_SENSOR_STASH_ACTIVE = ""
+
+# §2.3 scenario classifier values (returned by hierarchy.detect_scenario).
+SCENARIO_NATIVE = "native"
+SCENARIO_ATV_NO_TITLE = "atv_no_title"
+SCENARIO_ATV_TITLE = "atv_title"
+SCENARIO_GAME = "game"
+SCENARIO_STASH = "stash"
+SCENARIO_TV_IN_LIST = "tv_in_list"
+SCENARIO_TV_OUT_OF_LIST = "tv_out_of_list"
+SCENARIO_FALLBACK = "fallback"
 
 # ---------------------------------------------------------------------------
 # Combined Player

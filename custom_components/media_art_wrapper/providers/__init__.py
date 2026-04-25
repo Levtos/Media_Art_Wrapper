@@ -62,7 +62,10 @@ def get_providers(
     """
     wanted: list[str] = CATEGORY_PROVIDERS.get(category, CATEGORY_PROVIDERS[CATEGORY_AUTO])
 
-    # Build all provider instances (keyed by provider name)
+    # Build all provider instances (keyed by provider name).
+    # TODO Schritt 7 (§3.2 / §6): wire StashClient, StashDBProvider,
+    # PornDBProvider and AEBNProvider — keys "stash", "stashdb", "porndb",
+    # "aebn" are already routed via CATEGORY_PROVIDERS[CATEGORY_ADULT].
     all_instances: dict[str, ArtworkProvider] = {
         "itunes": ITunesProvider(),
         "musicbrainz": MusicBrainzProvider(),

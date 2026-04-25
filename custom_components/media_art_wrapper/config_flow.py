@@ -42,6 +42,9 @@ from .const import (
     CONF_FANART_API_KEY,
     CONF_IGDB_CLIENT_ID,
     CONF_IGDB_CLIENT_SECRET,
+    CONF_MAW_SENSOR_DISCORD_GAME,
+    CONF_MAW_SENSOR_STASH_ACTIVE,
+    CONF_MAW_SENSOR_TV_INPUT,
     CONF_RATIO,
     CONF_SOURCE_ENTITY_ID,
     CONF_STEAMGRIDDB_API_KEY,
@@ -52,6 +55,9 @@ from .const import (
     DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
     DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC,
     DEFAULT_CMP_SENSOR_PS5_CONTEXT,
+    DEFAULT_MAW_SENSOR_DISCORD_GAME,
+    DEFAULT_MAW_SENSOR_STASH_ACTIVE,
+    DEFAULT_MAW_SENSOR_TV_INPUT,
     DEFAULT_RATIO,
     DOMAIN,
     FALLBACK_CUSTOM_URL_MODE,
@@ -242,6 +248,24 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
             selector.EntitySelectorConfig(domain="sensor", multiple=False)
         )
 
+    # §2.3 hierarchy detector — context sensors per LASTENHEFT §7.1.
+    # Always shown (drives prio 2-7 dispatching independent of category).
+    sensor_selector = selector.EntitySelector(
+        selector.EntitySelectorConfig(domain=["sensor", "binary_sensor"], multiple=False)
+    )
+    fields[vol.Optional(
+        CONF_MAW_SENSOR_TV_INPUT,
+        default=opts.get(CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT),
+    )] = sensor_selector
+    fields[vol.Optional(
+        CONF_MAW_SENSOR_DISCORD_GAME,
+        default=opts.get(CONF_MAW_SENSOR_DISCORD_GAME, DEFAULT_MAW_SENSOR_DISCORD_GAME),
+    )] = sensor_selector
+    fields[vol.Optional(
+        CONF_MAW_SENSOR_STASH_ACTIVE,
+        default=opts.get(CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE),
+    )] = sensor_selector
+
     return vol.Schema(fields)
 
 
@@ -401,6 +425,15 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_MAW_SENSOR_TV_INPUT: draft.get(
+                    CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT
+                ),
+                CONF_MAW_SENSOR_DISCORD_GAME: draft.get(
+                    CONF_MAW_SENSOR_DISCORD_GAME, DEFAULT_MAW_SENSOR_DISCORD_GAME
+                ),
+                CONF_MAW_SENSOR_STASH_ACTIVE: draft.get(
+                    CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE
+                ),
             }
             if self._entity_kind == ENTITY_KIND_WRAPPER_COMBINED:
                 self._step3[CONF_CREATE_COMBINED] = True
@@ -540,6 +573,15 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_MAW_SENSOR_TV_INPUT: draft.get(
+                    CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT
+                ),
+                CONF_MAW_SENSOR_DISCORD_GAME: draft.get(
+                    CONF_MAW_SENSOR_DISCORD_GAME, DEFAULT_MAW_SENSOR_DISCORD_GAME
+                ),
+                CONF_MAW_SENSOR_STASH_ACTIVE: draft.get(
+                    CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE
+                ),
             }
             return await self.async_step_combined()
 

@@ -1,19 +1,25 @@
-"""Persistent game metadata database (LASTENHEFT §4.2-§4.4)."""
+"""Persistent game metadata database (LASTENHEFT §4.2-§4.4).
+
+Async-first per HA's event-loop discipline: the in-memory mutex is an
+``asyncio.Lock`` and the JSON-file read/write is dispatched off-loop
+via ``loop.run_in_executor`` so a slow disk does not block the event
+loop. All public read/write helpers are coroutines.
+"""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
 GAME_DB_PATH = Path("/config/custom_components/smart_player/game_db.json")
 _KEY_RE = re.compile(r"[^a-z0-9]+")
-_LOCK = Lock()
+_LOCK = asyncio.Lock()
 
 
 def _now_iso() -> str:
@@ -40,7 +46,7 @@ def _default_entry(title: str) -> dict[str, Any]:
     }
 
 
-def _load() -> dict[str, dict[str, Any]]:
+def _load_sync() -> dict[str, dict[str, Any]]:
     if not GAME_DB_PATH.exists():
         return {}
     try:
@@ -51,15 +57,26 @@ def _load() -> dict[str, dict[str, Any]]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _save(data: dict[str, dict[str, Any]]) -> None:
+def _save_sync(data: dict[str, dict[str, Any]]) -> None:
     GAME_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    GAME_DB_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    GAME_DB_PATH.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
-def touch_title(title: str) -> dict[str, Any]:
+async def _aio_load() -> dict[str, dict[str, Any]]:
+    return await asyncio.get_running_loop().run_in_executor(None, _load_sync)
+
+
+async def _aio_save(data: dict[str, dict[str, Any]]) -> None:
+    await asyncio.get_running_loop().run_in_executor(None, _save_sync, data)
+
+
+async def touch_title(title: str) -> dict[str, Any]:
     key = key_for_title(title)
-    with _LOCK:
-        db = _load()
+    async with _LOCK:
+        db = await _aio_load()
         entry = db.get(key)
         if not isinstance(entry, dict):
             entry = _default_entry(title)
@@ -67,14 +84,14 @@ def touch_title(title: str) -> dict[str, Any]:
         entry["last_seen"] = _now_iso()
         entry["play_count"] = int(entry.get("play_count") or 0) + 1
         db[key] = entry
-        _save(db)
+        await _aio_save(db)
         return dict(entry)
 
 
-def update_title(title: str, **fields: Any) -> dict[str, Any]:
+async def update_title(title: str, **fields: Any) -> dict[str, Any]:
     key = key_for_title(title)
-    with _LOCK:
-        db = _load()
+    async with _LOCK:
+        db = await _aio_load()
         entry = db.get(key)
         if not isinstance(entry, dict):
             entry = _default_entry(title)
@@ -82,13 +99,13 @@ def update_title(title: str, **fields: Any) -> dict[str, Any]:
             entry[k] = v
         entry["last_seen"] = _now_iso()
         db[key] = entry
-        _save(db)
+        await _aio_save(db)
         return dict(entry)
 
 
-def get_title(title: str) -> dict[str, Any] | None:
+async def get_title(title: str) -> dict[str, Any] | None:
     key = key_for_title(title)
-    with _LOCK:
-        db = _load()
+    async with _LOCK:
+        db = await _aio_load()
         entry = db.get(key)
         return dict(entry) if isinstance(entry, dict) else None

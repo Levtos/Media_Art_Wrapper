@@ -148,7 +148,36 @@ CONF_STASH_HOST_REWRITE = "stash_host_rewrite"
 CONF_STASHDB_API_KEY = "stashdb_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
-CONF_EPG_FULL_LOOKUP_CHANNELS = "epg_full_lookup_channels"
+# §5 Teil 2 — per-channel EPG sensor map. dict[channel_name, sensor_entity_id],
+# case-insensitive key match. CONF_EPG_SENSOR remains as the catch-all
+# fallback when no per-channel entry hits.
+CONF_EPG_SENSOR_MAP = "epg_sensor_map"
+
+
+def epg_sensor_for_channel(options: dict, channel_name: str | None) -> str | None:
+    """Return the EPG sensor entity_id to query for *channel_name*.
+
+    Lookup order:
+      1. options[CONF_EPG_SENSOR_MAP][channel_name] — case-insensitive match.
+      2. options[CONF_EPG_SENSOR] — single catch-all fallback.
+      3. None — caller skips EPG enrichment.
+    """
+    raw_map = options.get(CONF_EPG_SENSOR_MAP)
+    if isinstance(raw_map, dict) and channel_name:
+        ch_lower = channel_name.strip().lower()
+        if ch_lower:
+            for key, sensor in raw_map.items():
+                if (
+                    isinstance(key, str)
+                    and key.strip().lower() == ch_lower
+                    and isinstance(sensor, str)
+                    and sensor.strip()
+                ):
+                    return sensor.strip()
+    fallback = options.get(CONF_EPG_SENSOR)
+    if isinstance(fallback, str) and fallback.strip():
+        return fallback.strip()
+    return None
 
 # ---------------------------------------------------------------------------
 # §2.3 Artwork-hierarchy detector sensors (per §7.1)
@@ -218,8 +247,11 @@ DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE = "binary_sensor.homepods_active_atomic"
 # ---------------------------------------------------------------------------
 # EPG — Channel classification
 # ---------------------------------------------------------------------------
+CONF_EPG_FULL_LOOKUP_CHANNELS = "epg_full_lookup_channels"
+
 # Channels in this set trigger full API lookups (TVMaze + TMDb episode search).
 # All other channels (private/commercial) receive channel_icon directly.
+# Stored as the LASTENHEFT default; users can override via OptionsFlow.
 DEFAULT_EPG_FULL_LOOKUP_CHANNELS: tuple[str, ...] = (
     # ARD Familie
     "Das Erste", "ARD", "ARD HD", "Das Erste HD", "tagesschau24", "ONE", "ARD alpha",
@@ -233,4 +265,23 @@ DEFAULT_EPG_FULL_LOOKUP_CHANNELS: tuple[str, ...] = (
     "Phoenix", "KiKA",
 )
 
+# Backwards-compat alias for code that still imports the legacy frozenset.
+# Read from options first via epg_full_lookup_channels(); this constant only
+# represents the LASTENHEFT default.
 EPG_FULL_LOOKUP_CHANNELS: frozenset[str] = frozenset(DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
+
+
+def epg_full_lookup_channels(options: dict) -> frozenset[str]:
+    """Return the user-configured (or default) EPG full-lookup channel set,
+    normalised to lowercase for case-insensitive matching."""
+    raw = options.get(CONF_EPG_FULL_LOOKUP_CHANNELS)
+    if isinstance(raw, (list, tuple, set, frozenset)) and raw:
+        return frozenset(str(c).strip().lower() for c in raw if str(c).strip())
+    return frozenset(c.lower() for c in DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
+
+
+def channel_in_epg_list(channel_name: str, options: dict) -> bool:
+    """Case-insensitive membership test for the EPG full-lookup channel list."""
+    if not channel_name:
+        return False
+    return channel_name.strip().lower() in epg_full_lookup_channels(options)

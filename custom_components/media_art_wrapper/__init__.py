@@ -22,13 +22,13 @@ from .const import (
     CONF_ARTWORK_WIDTH,
     CONF_CATEGORY,
     CONF_CREATE_WRAPPER,
+    CONF_EPG_SENSOR,
+    CONF_EPG_SENSOR_MAP,
     CONF_FALLBACK_MODE,
     CONF_MAW_SENSOR_DISCORD_GAME,
     CONF_MAW_SENSOR_STASH_ACTIVE,
     CONF_MAW_SENSOR_TV_INPUT,
     CONF_SOURCE_ENTITY_ID,
-    CONF_EPG_SENSOR,
-    CONF_EPG_FULL_LOOKUP_CHANNELS,
     COMBINED_NUM_SOURCE_SLOTS,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_SIZE,
@@ -41,9 +41,15 @@ from .const import (
     FALLBACK_PLACEHOLDER,
     PLATFORMS,
     RATIO_1_1_2000,
+    epg_sensor_for_channel,
 )
 from .providers.epg_base import HaEpgProvider
-from .providers.hierarchy import detect_scenario, resolve_hierarchy
+from .providers.hierarchy import (
+    detect_badge_game,
+    detect_scenario,
+    maybe_apply_badge_bytes,
+    resolve_hierarchy,
+)
 from .providers.query_builder import build_query
 
 _LOGGER = logging.getLogger(__name__)
@@ -171,6 +177,9 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self.artwork_width = int(artwork_width)
         self.artwork_height = int(artwork_height)
         self.artwork_size = max(self.artwork_width, self.artwork_height)
+        # EPG sensor lookup is done per-call against options now (§5 Teil 2 —
+        # per-channel sensor map with single-sensor fallback). The instance
+        # attribute is kept only for legacy diagnostics / state-change tracking.
         epg = opts.get(CONF_EPG_SENSOR, data.get(CONF_EPG_SENSOR))
         self._epg_sensor = str(epg).strip() if isinstance(epg, str) and epg else None
 
@@ -315,15 +324,37 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         )
 
     def _native_artwork_result(self, state_attrs: dict[str, Any]) -> str | None:
-        """§2.3 prio 1 — return source's own entity_picture URL when present.
+        """§2.3 prio 1 — return the source's own external artwork URL.
 
-        Only public http(s) URLs count as native artwork; HA-relative paths
-        like /api/image_proxy/... typically loop back to the wrapper's own
-        served image and would create infinite recursion.
+        Looks up *both* the live state and the snapshotted attrs because
+        Music Assistant updates ``entity_picture`` shortly after a track
+        change, while ``_state_attrs`` is captured exactly at track change
+        and may still hold the previous (or proxy) URL.
+
+        URL source order:
+          1. ``media_image_url`` — most integrations (incl. MA) expose the
+             canonical external URL here without HA's proxy rewriting.
+          2. ``entity_picture`` — only when it's an absolute http(s) URL.
+
+        Anything starting with ``/`` (e.g. ``/api/media_player_proxy/...``
+        or ``entity_picture_local``) is intentionally ignored — it would
+        either loop back to HA's own proxy or to this wrapper's served
+        image and would never count as native source artwork.
         """
-        ep = state_attrs.get("entity_picture")
-        if isinstance(ep, str) and ep.startswith("http"):
-            return ep
+        live = self.hass.states.get(self.source_entity_id)
+        live_attrs = dict(live.attributes) if live is not None else {}
+
+        for source_label, attrs in (("live", live_attrs), ("snapshot", state_attrs)):
+            for key in ("media_image_url", "entity_picture"):
+                value = attrs.get(key)
+                if isinstance(value, str) and (
+                    value.startswith("http://") or value.startswith("https://")
+                ):
+                    _LOGGER.debug(
+                        "§2.3 prio 1 native artwork: source=%s key=%s url=%s",
+                        source_label, key, value,
+                    )
+                    return value
         return None
 
     def _sensor_state_str(self, entity_id: str) -> str | None:
@@ -333,6 +364,14 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         if st is None or st.state in {"unavailable", "unknown"}:
             return None
         return st.state
+
+    def _sensor_attrs(self, entity_id: str) -> dict[str, Any]:
+        if not entity_id:
+            return {}
+        st = self.hass.states.get(entity_id)
+        if st is None:
+            return {}
+        return dict(st.attributes or {})
 
     async def _fetch_native_image(self, url: str) -> tuple[bytes | None, str]:
         """Best-effort byte download for §2.3 prio 1 native artwork."""
@@ -360,10 +399,31 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             try:
                 state_attrs = dict(self._state_attrs)
 
+                # §2.4 — badge overlay: Discord game-context drives an SGDB
+                # logo composited over the primary cover. Detected once per
+                # update and reused by both the native pass-through and the
+                # hierarchy dispatcher.
+                badge_game_title = detect_badge_game(
+                    self._sensor_state_str(self._sensor_discord_game),
+                    self._sensor_attrs(self._sensor_discord_game),
+                )
+
                 # §2.3 prio 1 — native artwork pass-through.
                 native_url = self._native_artwork_result(state_attrs)
                 if native_url:
                     image, ct = await self._fetch_native_image(native_url)
+                    provider_name = "native"
+                    if image and badge_game_title:
+                        composed = await maybe_apply_badge_bytes(
+                            self._session,
+                            self.entry.options,
+                            image,
+                            ct,
+                            badge_game_title,
+                        )
+                        if composed is not None:
+                            image, ct = composed
+                            provider_name = "native+badge"
                     self._last_error = None
                     data = CoverData(
                         source_entity_id=self.source_entity_id,
@@ -371,7 +431,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                         artist=artist,
                         title=title,
                         album=album,
-                        provider="native",
+                        provider=provider_name,
                         artwork_url=native_url,
                         content_type=ct,
                         image=image,
@@ -382,10 +442,23 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     return data
 
                 self._epg_channel_icon = None
-                if self.category in {"tv", "auto"} and self._epg_sensor:
-                    try:
-                        epg = await HaEpgProvider().get_current_program(self.hass, self._epg_sensor)
-                    except Exception:
+                if self.category in {"tv", "auto"}:
+                    epg_channel_name = str(state_attrs.get("app_name") or "")
+                    epg_sensor = epg_sensor_for_channel(
+                        self.entry.options, epg_channel_name
+                    )
+                    if epg_sensor:
+                        try:
+                            epg = await HaEpgProvider().get_current_program(
+                                self.hass, epg_sensor
+                            )
+                        except Exception:
+                            epg = None
+                        _LOGGER.debug(
+                            "§5 EPG sensor for channel %r → %s (hit=%s)",
+                            epg_channel_name, epg_sensor, bool(epg),
+                        )
+                    else:
                         epg = None
                     if epg and epg.title:
                         state_attrs["media_title"] = epg.title
@@ -409,7 +482,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     discord_game_state=self._sensor_state_str(self._sensor_discord_game),
                     stash_active_state=self._sensor_state_str(self._sensor_stash_active),
                     channel_name=query.channel_name,
-                    epg_full_lookup_channels=self._epg_full_lookup_channels,
+                    options=self.entry.options,
                 )
                 resolved = await resolve_hierarchy(
                     session=self._session,
@@ -418,6 +491,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     options=self.entry.options,
                     app_name=query.app_name or "",
                     fallback_category=self.category,
+                    badge_game_title=badge_game_title,
                 )
             except Exception as err:  # noqa: BLE001
                 self._last_error = str(err)
@@ -469,6 +543,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
          ``combined_delegate_1..N``; backfilled ``epg_sensor`` default.
     6  – Removed remaining ``delegate_entity`` artefacts; added
          ``channel_icon`` and ``channel_name`` defaults on the wrapper.
+    7  – §5 Teil 2: introduce ``epg_sensor_map`` (channel_name → sensor)
+         for multi-EPG-source setups; legacy single ``epg_sensor`` is
+         retained as a catch-all fallback.
     """
     current_version: int = entry.version
     _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)
@@ -547,6 +624,17 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         current_version = 6
         _LOGGER.info(
             "Migrated config entry %s: v5 → v6 (remove delegate_entity, add channel fields)",
+            entry.entry_id,
+        )
+
+    if current_version < 7:
+        # §5 Teil 2 — introduce per-channel EPG sensor map. The single
+        # CONF_EPG_SENSOR remains as catch-all fallback so existing entries
+        # keep behaving identically until the user adds per-channel mappings.
+        new_options.setdefault("epg_sensor_map", {})
+        current_version = 7
+        _LOGGER.info(
+            "Migrated config entry %s: v6 → v7 (added per-channel epg_sensor_map)",
             entry.entry_id,
         )
 

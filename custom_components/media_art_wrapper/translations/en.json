@@ -31,7 +31,9 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "epg_sensor": "EPG sensor (optional)",
+          "epg_sensor": "EPG sensor (optional, catch-all)",
+          "epg_sensor_map": "Per-channel EPG sensor (one line: channel=sensor.id)",
+          "epg_full_lookup_channels": "EPG channels with full lookup",
           "maw_sensor_tv_input": "Sensor: active TV source (§2.3)",
           "maw_sensor_discord_game": "Sensor: Discord game (§2.3)",
           "maw_sensor_stash_active": "Sensor: Stash active (§2.3, optional)"
@@ -47,7 +49,9 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork.",
+          "epg_sensor": "Catch-all sensor of the HA-EPG integration. Used when the active channel has no entry in the per-channel map below.",
+          "epg_sensor_map": "One mapping per line: 'channel=sensor.entity_id'. Channel match is case-insensitive. Falls back to the catch-all sensor when no entry hits.",
+          "epg_full_lookup_channels": "Channels for which a full EPG lookup (TVMaze + TMDb) is performed. All other channels just receive their channel_icon directly. Matching is case-insensitive. Default: ARD/ZDF/WDR/arte + public-broadcaster family (§5.1).",
           "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Values: ps5/atv/live_tv/tv_on_idle/none — drives the §2.3 artwork hierarchy.",
           "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numeric sensor (>0 = game active).",
           "maw_sensor_stash_active": "§7.2 — does not exist yet. Leave empty or provide your own binary_sensor."
@@ -150,7 +154,9 @@
           "igdb_client_secret": "IGDB Client Secret (gaming)",
           "steamgriddb_api_key": "SteamGridDB API key (optional, gaming)",
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
-          "epg_sensor": "EPG sensor (optional)",
+          "epg_sensor": "EPG sensor (optional, catch-all)",
+          "epg_sensor_map": "Per-channel EPG sensor (one line: channel=sensor.id)",
+          "epg_full_lookup_channels": "EPG channels with full lookup",
           "maw_sensor_tv_input": "Sensor: active TV source (§2.3)",
           "maw_sensor_discord_game": "Sensor: Discord game (§2.3)",
           "maw_sensor_stash_active": "Sensor: Stash active (§2.3, optional)"
@@ -166,7 +172,9 @@
           "igdb_client_secret": "Twitch developer app Client Secret, required for IGDB game cover art.",
           "steamgriddb_api_key": "Optional. Enables high-quality community game art from SteamGridDB. Steam Store artwork works without a key.",
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
-          "epg_sensor": "HA-EPG integration sensor. MAW reads the currently running programme title from it and looks up its artwork.",
+          "epg_sensor": "Catch-all sensor of the HA-EPG integration. Used when the active channel has no entry in the per-channel map below.",
+          "epg_sensor_map": "One mapping per line: 'channel=sensor.entity_id'. Channel match is case-insensitive. Falls back to the catch-all sensor when no entry hits.",
+          "epg_full_lookup_channels": "Channels for which a full EPG lookup (TVMaze + TMDb) is performed. All other channels just receive their channel_icon directly. Matching is case-insensitive. Default: ARD/ZDF/WDR/arte + public-broadcaster family (§5.1).",
           "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Values: ps5/atv/live_tv/tv_on_idle/none — drives the §2.3 artwork hierarchy.",
           "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numeric sensor (>0 = game active).",
           "maw_sensor_stash_active": "§7.2 — does not exist yet. Leave empty or provide your own binary_sensor."

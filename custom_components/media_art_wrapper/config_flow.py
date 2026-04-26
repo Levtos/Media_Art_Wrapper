@@ -49,12 +49,14 @@ from .const import (
     CONF_SOURCE_ENTITY_ID,
     CONF_STEAMGRIDDB_API_KEY,
     CONF_TMDB_API_KEY,
+    CONF_EPG_FULL_LOOKUP_CHANNELS,
     CONF_EPG_SENSOR,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_WIDTH,
     DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
     DEFAULT_CMP_SENSOR_HOMEPODS_MUSIC,
     DEFAULT_CMP_SENSOR_PS5_CONTEXT,
+    DEFAULT_EPG_FULL_LOOKUP_CHANNELS,
     DEFAULT_MAW_SENSOR_DISCORD_GAME,
     DEFAULT_MAW_SENSOR_STASH_ACTIVE,
     DEFAULT_MAW_SENSOR_TV_INPUT,
@@ -247,6 +249,19 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
         fields[vol.Optional(CONF_EPG_SENSOR, default=opts.get(CONF_EPG_SENSOR))] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor", multiple=False)
         )
+        # §5.1 / §5.3 — user-configurable EPG full-lookup channel list,
+        # default = LASTENHEFT §5.1 starter list (WDR/ARD/ZDF + ÖR family).
+        fields[vol.Optional(
+            CONF_EPG_FULL_LOOKUP_CHANNELS,
+            default=list(opts.get(CONF_EPG_FULL_LOOKUP_CHANNELS, DEFAULT_EPG_FULL_LOOKUP_CHANNELS)),
+        )] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[],
+                multiple=True,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.LIST,
+            )
+        )
 
     # §2.3 hierarchy detector — context sensors per LASTENHEFT §7.1.
     # Always shown (drives prio 2-7 dispatching independent of category).
@@ -425,6 +440,9 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_EPG_FULL_LOOKUP_CHANNELS: list(
+                    draft.get(CONF_EPG_FULL_LOOKUP_CHANNELS, DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
+                ),
                 CONF_MAW_SENSOR_TV_INPUT: draft.get(
                     CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT
                 ),
@@ -573,6 +591,9 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_EPG_FULL_LOOKUP_CHANNELS: list(
+                    draft.get(CONF_EPG_FULL_LOOKUP_CHANNELS, DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
+                ),
                 CONF_MAW_SENSOR_TV_INPUT: draft.get(
                     CONF_MAW_SENSOR_TV_INPUT, DEFAULT_MAW_SENSOR_TV_INPUT
                 ),

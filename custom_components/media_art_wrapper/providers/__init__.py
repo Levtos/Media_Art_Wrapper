@@ -27,7 +27,7 @@ from ..const import (
     CONF_IGDB_CLIENT_SECRET,
     CONF_STEAMGRIDDB_API_KEY,
     CONF_TMDB_API_KEY,
-    EPG_FULL_LOOKUP_CHANNELS,
+    channel_in_epg_list,
 )
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
 from .fanart import FanartTvProvider
@@ -109,17 +109,23 @@ async def resolve_cover(
     session,
     query: ArtworkQuery,
     providers: list[ArtworkProvider],
+    options: dict[str, Any] | None = None,
 ) -> ArtworkResult | None:
     """Try each provider in order; return the first successful ArtworkResult.
 
     Providers are tried in the order supplied by *providers*.  If a provider
     raises an unexpected exception it is logged and skipped so that the next
     provider can be tried.
+
+    *options* is the config-entry options dict; passed through so the EPG
+    channel-icon shortcut consults the user-configured full-lookup channel
+    list (case-insensitive) instead of the hardcoded default.
     """
+    opts = options or {}
     # TV: private/commercial channels → return channel_icon directly, skip API lookups
     if query.category == "tv" and query.channel_name:
         raw_channel = (query.channel_name or "").strip()
-        if raw_channel and raw_channel not in EPG_FULL_LOOKUP_CHANNELS:
+        if raw_channel and not channel_in_epg_list(raw_channel, opts):
             if query.channel_icon:
                 _LOGGER.debug(
                     "Private channel %r — returning channel_icon directly (no API call)",

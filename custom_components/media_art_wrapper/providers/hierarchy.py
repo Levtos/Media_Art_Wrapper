@@ -20,7 +20,6 @@ from typing import Any
 from ..const import (
     CATEGORY_ADULT,
     CONF_STEAMGRIDDB_API_KEY,
-    EPG_FULL_LOOKUP_CHANNELS,
     SCENARIO_ATV_NO_TITLE,
     SCENARIO_ATV_TITLE,
     SCENARIO_FALLBACK,
@@ -28,6 +27,7 @@ from ..const import (
     SCENARIO_STASH,
     SCENARIO_TV_IN_LIST,
     SCENARIO_TV_OUT_OF_LIST,
+    channel_in_epg_list,
 )
 from ..helpers import FALLBACK_IMAGE, service_logo
 from . import build_provider_instances, get_providers, resolve_cover
@@ -60,14 +60,19 @@ def detect_scenario(
     discord_game_state: str | None,
     stash_active_state: str | None,
     channel_name: str = "",
+    options: dict[str, Any] | None = None,
 ) -> ScenarioContext:
     """Classify which §2.3 priority applies for the current context.
 
     Detection order mirrors the §2.3 table; the first matching scenario wins.
     Native-artwork pass-through (§2.3 prio 1) is the caller's responsibility.
+
+    *options* provides access to the user-configured EPG channel list (§5.1)
+    so the TV-in-list / TV-out-of-list branch respects per-entry overrides.
     """
     tv_input = (tv_input_state or "").strip().lower()
     stash_raw = (stash_active_state or "").strip().lower()
+    opts = options or {}
 
     # Prio 5 — Stash
     if stash_raw and stash_raw in _TRUE_STATES:
@@ -92,7 +97,7 @@ def detect_scenario(
 
     # Prio 6 / 7 — TV / Sat
     if tv_input == "live_tv":
-        in_list = bool(channel_name and channel_name.strip() in EPG_FULL_LOOKUP_CHANNELS)
+        in_list = channel_in_epg_list(channel_name, opts)
         return ScenarioContext(
             SCENARIO_TV_IN_LIST if in_list else SCENARIO_TV_OUT_OF_LIST,
             channel_in_list=in_list,
@@ -339,12 +344,17 @@ async def resolve_hierarchy(
         result = _service_logo_result(app_name) or _placeholder_result()
     elif s == SCENARIO_ATV_TITLE:
         # §2.3 prio 3 — TMDb / iTunes Content-Lookup
-        primary = await resolve_cover(session, query, _chain(["tmdb", "itunes"], options))
+        primary = await resolve_cover(
+            session, query, _chain(["tmdb", "itunes"], options), options=options
+        )
         result = primary or _service_logo_result(app_name) or _placeholder_result()
     elif s == SCENARIO_GAME:
         # §2.3 prio 4 — IGDB → SteamGridDB (Steam Store as no-key fallback)
         primary = await resolve_cover(
-            session, query, _chain(["igdb", "steamgriddb", "steam"], options)
+            session,
+            query,
+            _chain(["igdb", "steamgriddb", "steam"], options),
+            options=options,
         )
         result = primary or _service_logo_result(app_name) or _placeholder_result()
     elif s == SCENARIO_STASH:
@@ -354,12 +364,15 @@ async def resolve_hierarchy(
         adult = get_providers(CATEGORY_ADULT, options)
         primary = None
         if adult:
-            primary = await resolve_cover(session, query, adult)
+            primary = await resolve_cover(session, query, adult, options=options)
         result = primary or _service_logo_result(app_name) or _placeholder_result()
     elif s == SCENARIO_TV_IN_LIST:
         # §2.3 prio 6 — EPG-Lookup → Programmtitel → Cover (TVMaze / TMDb)
         primary = await resolve_cover(
-            session, query, _chain(["tvmaze", "tmdb", "fanart"], options)
+            session,
+            query,
+            _chain(["tvmaze", "tmdb", "fanart"], options),
+            options=options,
         )
         result = (
             primary
@@ -380,7 +393,7 @@ async def resolve_hierarchy(
         # Returning None preserves the existing CoverCoordinator semantics
         # (image entity then renders configured fallback_mode).
         result = await resolve_cover(
-            session, query, get_providers(fallback_category, options)
+            session, query, get_providers(fallback_category, options), options=options
         )
 
     if result is None:

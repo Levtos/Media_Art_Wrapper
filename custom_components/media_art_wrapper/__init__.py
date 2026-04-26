@@ -453,6 +453,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     discord_game_state=self._sensor_state_str(self._sensor_discord_game),
                     stash_active_state=self._sensor_state_str(self._sensor_stash_active),
                     channel_name=query.channel_name,
+                    options=self.entry.options,
                 )
                 resolved = await resolve_hierarchy(
                     session=self._session,

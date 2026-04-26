@@ -33,6 +33,7 @@
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
           "xmltv_url": "XMLTV EPG feed URL (optional, TV)",
           "epg_sensor": "EPG-Sensor (optional)",
+          "epg_full_lookup_channels": "EPG-Sender mit Voll-Lookup",
           "maw_sensor_tv_input": "Sensor: aktive TV-Quelle (§2.3)",
           "maw_sensor_discord_game": "Sensor: Discord-Spiel (§2.3)",
           "maw_sensor_stash_active": "Sensor: Stash aktiv (§2.3, optional)"
@@ -50,6 +51,7 @@
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
           "xmltv_url": "Optional XMLTV EPG feed for advanced channel programme matching. Not yet implemented (planned for v3.1).",
           "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork.",
+          "epg_full_lookup_channels": "Liste der Sender, für die ein voller EPG-Lookup (TVMaze + TMDb) ausgeführt wird. Alle anderen Sender bekommen direkt das channel_icon. Match ist case-insensitive. Default: ARD/ZDF/WDR/arte + ÖR-Familie (§5.1).",
           "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Werte: ps5/atv/live_tv/tv_on_idle/none — steuert die §2.3 Artwork-Hierarchie.",
           "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numerischer Sensor (>0 = Spiel aktiv).",
           "maw_sensor_stash_active": "§7.2 — noch nicht vorhanden. Leer lassen oder eigenen binary_sensor angeben."
@@ -159,6 +161,7 @@
           "fanart_api_key": "Fanart.tv API key (optional, TV)",
           "xmltv_url": "XMLTV EPG feed URL (optional, TV)",
           "epg_sensor": "EPG-Sensor (optional)",
+          "epg_full_lookup_channels": "EPG-Sender mit Voll-Lookup",
           "maw_sensor_tv_input": "Sensor: aktive TV-Quelle (§2.3)",
           "maw_sensor_discord_game": "Sensor: Discord-Spiel (§2.3)",
           "maw_sensor_stash_active": "Sensor: Stash aktiv (§2.3, optional)"
@@ -176,6 +179,7 @@
           "fanart_api_key": "Optional. Enables TV show logos and posters from Fanart.tv.",
           "xmltv_url": "Optional XMLTV EPG feed for advanced channel programme matching. Not yet implemented (planned for v3.1).",
           "epg_sensor": "Sensor der HA-EPG Integration. MAW liest daraus den aktuell laufenden Titel und sucht dessen Artwork.",
+          "epg_full_lookup_channels": "Liste der Sender, für die ein voller EPG-Lookup (TVMaze + TMDb) ausgeführt wird. Alle anderen Sender bekommen direkt das channel_icon. Match ist case-insensitive. Default: ARD/ZDF/WDR/arte + ÖR-Familie (§5.1).",
           "maw_sensor_tv_input": "Default: sensor.tv_active_input (§7.1). Werte: ps5/atv/live_tv/tv_on_idle/none — steuert die §2.3 Artwork-Hierarchie.",
           "maw_sensor_discord_game": "Default: sensor.discord_active_game_atomic (§7.1). Numerischer Sensor (>0 = Spiel aktiv).",
           "maw_sensor_stash_active": "§7.2 — noch nicht vorhanden. Leer lassen oder eigenen binary_sensor angeben."

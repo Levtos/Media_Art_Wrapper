@@ -309,15 +309,37 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         )
 
     def _native_artwork_result(self, state_attrs: dict[str, Any]) -> str | None:
-        """§2.3 prio 1 — return source's own entity_picture URL when present.
+        """§2.3 prio 1 — return the source's own external artwork URL.
 
-        Only public http(s) URLs count as native artwork; HA-relative paths
-        like /api/image_proxy/... typically loop back to the wrapper's own
-        served image and would create infinite recursion.
+        Looks up *both* the live state and the snapshotted attrs because
+        Music Assistant updates ``entity_picture`` shortly after a track
+        change, while ``_state_attrs`` is captured exactly at track change
+        and may still hold the previous (or proxy) URL.
+
+        URL source order:
+          1. ``media_image_url`` — most integrations (incl. MA) expose the
+             canonical external URL here without HA's proxy rewriting.
+          2. ``entity_picture`` — only when it's an absolute http(s) URL.
+
+        Anything starting with ``/`` (e.g. ``/api/media_player_proxy/...``
+        or ``entity_picture_local``) is intentionally ignored — it would
+        either loop back to HA's own proxy or to this wrapper's served
+        image and would never count as native source artwork.
         """
-        ep = state_attrs.get("entity_picture")
-        if isinstance(ep, str) and ep.startswith("http"):
-            return ep
+        live = self.hass.states.get(self.source_entity_id)
+        live_attrs = dict(live.attributes) if live is not None else {}
+
+        for source_label, attrs in (("live", live_attrs), ("snapshot", state_attrs)):
+            for key in ("media_image_url", "entity_picture"):
+                value = attrs.get(key)
+                if isinstance(value, str) and (
+                    value.startswith("http://") or value.startswith("https://")
+                ):
+                    _LOGGER.debug(
+                        "§2.3 prio 1 native artwork: source=%s key=%s url=%s",
+                        source_label, key, value,
+                    )
+                    return value
         return None
 
     def _sensor_state_str(self, entity_id: str) -> str | None:

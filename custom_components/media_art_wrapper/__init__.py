@@ -41,7 +41,12 @@ from .const import (
     RATIO_1_1_2000,
 )
 from .providers.epg_base import HaEpgProvider
-from .providers.hierarchy import detect_scenario, resolve_hierarchy
+from .providers.hierarchy import (
+    detect_badge_game,
+    detect_scenario,
+    maybe_apply_badge_bytes,
+    resolve_hierarchy,
+)
 from .providers.query_builder import build_query
 
 _LOGGER = logging.getLogger(__name__)
@@ -323,6 +328,14 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             return None
         return st.state
 
+    def _sensor_attrs(self, entity_id: str) -> dict[str, Any]:
+        if not entity_id:
+            return {}
+        st = self.hass.states.get(entity_id)
+        if st is None:
+            return {}
+        return dict(st.attributes or {})
+
     async def _fetch_native_image(self, url: str) -> tuple[bytes | None, str]:
         """Best-effort byte download for §2.3 prio 1 native artwork."""
         try:
@@ -349,10 +362,31 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             try:
                 state_attrs = dict(self._state_attrs)
 
+                # §2.4 — badge overlay: Discord game-context drives an SGDB
+                # logo composited over the primary cover. Detected once per
+                # update and reused by both the native pass-through and the
+                # hierarchy dispatcher.
+                badge_game_title = detect_badge_game(
+                    self._sensor_state_str(self._sensor_discord_game),
+                    self._sensor_attrs(self._sensor_discord_game),
+                )
+
                 # §2.3 prio 1 — native artwork pass-through.
                 native_url = self._native_artwork_result(state_attrs)
                 if native_url:
                     image, ct = await self._fetch_native_image(native_url)
+                    provider_name = "native"
+                    if image and badge_game_title:
+                        composed = await maybe_apply_badge_bytes(
+                            self._session,
+                            self.entry.options,
+                            image,
+                            ct,
+                            badge_game_title,
+                        )
+                        if composed is not None:
+                            image, ct = composed
+                            provider_name = "native+badge"
                     self._last_error = None
                     data = CoverData(
                         source_entity_id=self.source_entity_id,
@@ -360,7 +394,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                         artist=artist,
                         title=title,
                         album=album,
-                        provider="native",
+                        provider=provider_name,
                         artwork_url=native_url,
                         content_type=ct,
                         image=image,
@@ -405,6 +439,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     options=self.entry.options,
                     app_name=query.app_name or "",
                     fallback_category=self.category,
+                    badge_game_title=badge_game_title,
                 )
             except Exception as err:  # noqa: BLE001
                 self._last_error = str(err)

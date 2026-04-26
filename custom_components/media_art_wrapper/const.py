@@ -142,6 +142,10 @@ CONF_IGDB_CLIENT_ID = "igdb_client_id"
 CONF_IGDB_CLIENT_SECRET = "igdb_client_secret"
 CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
+CONF_STASH_URL = "stash_url"
+CONF_STASH_API_KEY = "stash_api_key"
+CONF_STASH_HOST_REWRITE = "stash_host_rewrite"
+CONF_STASHDB_API_KEY = "stashdb_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
 # §5 Teil 2 — per-channel EPG sensor map. dict[channel_name, sensor_entity_id],
@@ -250,8 +254,7 @@ CONF_EPG_FULL_LOOKUP_CHANNELS = "epg_full_lookup_channels"
 # Stored as the LASTENHEFT default; users can override via OptionsFlow.
 DEFAULT_EPG_FULL_LOOKUP_CHANNELS: tuple[str, ...] = (
     # ARD Familie
-    "Das Erste", "ARD", "ARD HD", "Das Erste HD",
-    "tagesschau24", "ONE", "ARD alpha",
+    "Das Erste", "ARD", "ARD HD", "Das Erste HD", "tagesschau24", "ONE", "ARD alpha",
     # ZDF Familie
     "ZDF", "ZDF HD", "ZDFinfo", "ZDFneo", "ZDF Krimi", "3sat",
     # WDR

@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_MAW_SENSOR_DISCORD_GAME,
     DEFAULT_MAW_SENSOR_STASH_ACTIVE,
     DEFAULT_MAW_SENSOR_TV_INPUT,
+    DEFAULT_EPG_FULL_LOOKUP_CHANNELS,
     DOMAIN,
     FALLBACK_PLACEHOLDER,
     PLATFORMS,
@@ -148,6 +149,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self._sensor_tv_input: str = ""
         self._sensor_discord_game: str = ""
         self._sensor_stash_active: str = ""
+        self._epg_full_lookup_channels: set[str] = set(DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
 
         super().__init__(
             hass=hass,
@@ -196,6 +198,14 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
             opts.get(CONF_MAW_SENSOR_STASH_ACTIVE,
                      data.get(CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE))
         ).strip()
+        raw_channels = opts.get(CONF_EPG_FULL_LOOKUP_CHANNELS, data.get(CONF_EPG_FULL_LOOKUP_CHANNELS))
+        if isinstance(raw_channels, str):
+            parsed = {part.strip() for part in raw_channels.split(",") if part.strip()}
+        elif isinstance(raw_channels, (list, tuple, set)):
+            parsed = {str(part).strip() for part in raw_channels if str(part).strip()}
+        else:
+            parsed = set(DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
+        self._epg_full_lookup_channels = parsed or set(DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
 
     def _tracked_entity_ids(self) -> list[str]:
         """Source plus §7.1 context sensors used by the §2.3 detector."""
@@ -462,6 +472,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     category=self.category,
                     artwork_width=self.artwork_width,
                     artwork_height=self.artwork_height,
+                    epg_full_lookup_channels=self._epg_full_lookup_channels,
                 )
 
                 # §2.3 prios 2-8 — hierarchy dispatch driven by §7.1 sensors.
@@ -504,7 +515,7 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                 source_entity_id=self.source_entity_id,
                 track_key=track_key,
                 artist=artist,
-                title=title,
+                title=query.title or title,
                 album=album,
                 provider=resolved.provider_name,
                 artwork_url=resolved.image_url,

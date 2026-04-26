@@ -48,6 +48,10 @@ from .const import (
     CONF_RATIO,
     CONF_SOURCE_ENTITY_ID,
     CONF_STEAMGRIDDB_API_KEY,
+    CONF_STASH_API_KEY,
+    CONF_STASH_HOST_REWRITE,
+    CONF_STASH_URL,
+    CONF_STASHDB_API_KEY,
     CONF_TMDB_API_KEY,
     CONF_EPG_FULL_LOOKUP_CHANNELS,
     CONF_EPG_SENSOR,
@@ -318,6 +322,18 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
         CONF_MAW_SENSOR_STASH_ACTIVE,
         default=opts.get(CONF_MAW_SENSOR_STASH_ACTIVE, DEFAULT_MAW_SENSOR_STASH_ACTIVE),
     )] = sensor_selector
+    fields[vol.Optional(CONF_STASH_URL, default=opts.get(CONF_STASH_URL, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
+    )
+    fields[vol.Optional(CONF_STASH_API_KEY, default=opts.get(CONF_STASH_API_KEY, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+    )
+    fields[vol.Optional(CONF_STASHDB_API_KEY, default=opts.get(CONF_STASHDB_API_KEY, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+    )
+    fields[vol.Optional(CONF_STASH_HOST_REWRITE, default=opts.get(CONF_STASH_HOST_REWRITE, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+    )
 
     return vol.Schema(fields)
 

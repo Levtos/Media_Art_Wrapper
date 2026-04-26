@@ -56,6 +56,12 @@ query SceneById($id: ID!) {
 }
 """
 
+GENERATE_SCREENSHOT_MUTATION = """
+mutation GenerateScreenshot($id: ID!) {
+  sceneGenerateScreenshot(id: $id)
+}
+"""
+
 
 class StashProvider(ArtworkProvider):
     categories = frozenset({"adult"})
@@ -102,6 +108,37 @@ class StashProvider(ArtworkProvider):
         netloc = f"{new_host}:{port}" if port else new_host
         return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
+    def _normalize_screenshot_url(self, screenshot_url: str) -> str:
+        """Normalize Stash screenshot URLs for HA-reachable access.
+
+        Stash commonly emits screenshot URLs on localhost:9999. If we know the
+        configured base URL, remap those URLs to the same host/port as base_url.
+        Then apply optional host rewrite for Docker/loopback environments.
+        """
+        normalized = screenshot_url
+        src = urlsplit(screenshot_url)
+        base = urlsplit(self._base_url)
+        if (
+            src.scheme in {"http", "https"}
+            and src.hostname == "localhost"
+            and src.port == 9999
+            and base.scheme
+            and base.hostname
+        ):
+            target_port = base.port
+            if target_port is None:
+                target_port = 443 if base.scheme == "https" else 80
+            normalized = urlunsplit(
+                (
+                    base.scheme,
+                    f"{base.hostname}:{target_port}",
+                    src.path,
+                    src.query,
+                    src.fragment,
+                )
+            )
+        return self._rewrite_url(normalized)
+
     async def _post_graphql(self, session, query: str, variables: dict[str, Any]) -> dict[str, Any] | None:
         for attempt in range(2):
             try:
@@ -122,6 +159,12 @@ class StashProvider(ArtworkProvider):
             if attempt == 0:
                 await asyncio.sleep(0.2)
         return None
+
+    async def _trigger_screenshot_generation(self, session, scene_id: str) -> None:
+        try:
+            await self._post_graphql(session, GENERATE_SCREENSHOT_MUTATION, {"id": scene_id})
+        except Exception as err:
+            _LOGGER.debug("Stash screenshot generation call failed: %s", err)
 
     def _pick_fallback(self, scene: dict[str, Any]) -> str | None:
         for performer in scene.get("performers") or []:
@@ -153,7 +196,26 @@ class StashProvider(ArtworkProvider):
 
         screenshot = ((scene.get("paths") or {}).get("screenshot") if isinstance(scene.get("paths"), dict) else None)
         if isinstance(screenshot, str) and screenshot:
-            return ArtworkResult(provider_name="stash", image_url=self._rewrite_url(screenshot), confidence=0.97)
+            return ArtworkResult(
+                provider_name="stash",
+                image_url=self._normalize_screenshot_url(screenshot),
+                confidence=0.97,
+            )
+
+        await self._trigger_screenshot_generation(session, str(first["id"]))
+        detail = await self._post_graphql(session, SCENE_BY_ID_QUERY, {"id": str(first["id"])})
+        generated = (detail or {}).get("findScene") if isinstance(detail, dict) else None
+        generated_screenshot = (
+            ((generated.get("paths") or {}).get("screenshot"))
+            if isinstance(generated, dict) and isinstance(generated.get("paths"), dict)
+            else None
+        )
+        if isinstance(generated_screenshot, str) and generated_screenshot:
+            return ArtworkResult(
+                provider_name="stash",
+                image_url=self._normalize_screenshot_url(generated_screenshot),
+                confidence=0.95,
+            )
 
         fallback = self._pick_fallback(scene)
         if fallback:

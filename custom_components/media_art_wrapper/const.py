@@ -144,6 +144,36 @@ CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
+# §5 Teil 2 — per-channel EPG sensor map. dict[channel_name, sensor_entity_id],
+# case-insensitive key match. CONF_EPG_SENSOR remains as the catch-all
+# fallback when no per-channel entry hits.
+CONF_EPG_SENSOR_MAP = "epg_sensor_map"
+
+
+def epg_sensor_for_channel(options: dict, channel_name: str | None) -> str | None:
+    """Return the EPG sensor entity_id to query for *channel_name*.
+
+    Lookup order:
+      1. options[CONF_EPG_SENSOR_MAP][channel_name] — case-insensitive match.
+      2. options[CONF_EPG_SENSOR] — single catch-all fallback.
+      3. None — caller skips EPG enrichment.
+    """
+    raw_map = options.get(CONF_EPG_SENSOR_MAP)
+    if isinstance(raw_map, dict) and channel_name:
+        ch_lower = channel_name.strip().lower()
+        if ch_lower:
+            for key, sensor in raw_map.items():
+                if (
+                    isinstance(key, str)
+                    and key.strip().lower() == ch_lower
+                    and isinstance(sensor, str)
+                    and sensor.strip()
+                ):
+                    return sensor.strip()
+    fallback = options.get(CONF_EPG_SENSOR)
+    if isinstance(fallback, str) and fallback.strip():
+        return fallback.strip()
+    return None
 
 # ---------------------------------------------------------------------------
 # §2.3 Artwork-hierarchy detector sensors (per §7.1)

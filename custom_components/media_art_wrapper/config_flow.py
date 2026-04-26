@@ -51,6 +51,7 @@ from .const import (
     CONF_TMDB_API_KEY,
     CONF_EPG_FULL_LOOKUP_CHANNELS,
     CONF_EPG_SENSOR,
+    CONF_EPG_SENSOR_MAP,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_WIDTH,
     DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE,
@@ -95,6 +96,32 @@ _FALLBACK_OPTIONS = [
     {"value": FALLBACK_SERVICE_LOGO, "label": "Service logo (auto-detected)"},
     {"value": FALLBACK_CUSTOM_URL_MODE, "label": "Custom URL …"},
 ]
+
+def _format_epg_sensor_map(d: Any) -> str:
+    """Render an EPG-sensor map as a multi-line ``channel=sensor`` text block."""
+    if not isinstance(d, dict):
+        return ""
+    return "\n".join(f"{k}={v}" for k, v in d.items() if k and v)
+
+
+def _parse_epg_sensor_map(s: Any) -> dict[str, str]:
+    """Parse the multi-line ``channel=sensor`` text back into a dict."""
+    if isinstance(s, dict):
+        return {str(k).strip(): str(v).strip()
+                for k, v in s.items() if str(k).strip() and str(v).strip()}
+    if not isinstance(s, str):
+        return {}
+    out: dict[str, str] = {}
+    for line in s.splitlines():
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        k, v = k.strip(), v.strip()
+        if k and v:
+            out[k] = v
+    return out
+
 
 _COMBINED_SLOT_KEYS = [f"combined_source_{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
 _COMBINED_DELEGATE_KEYS = [f"{CONF_COMBINED_DELEGATE_PREFIX}{i}" for i in range(1, COMBINED_NUM_SOURCE_SLOTS + 1)]
@@ -262,6 +289,17 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
                 mode=selector.SelectSelectorMode.LIST,
             )
         )
+        # §5 Teil 2 — per-channel EPG sensor map. One channel=sensor.entity_id
+        # per line. CONF_EPG_SENSOR above remains as catch-all fallback.
+        fields[vol.Optional(
+            CONF_EPG_SENSOR_MAP,
+            default=_format_epg_sensor_map(opts.get(CONF_EPG_SENSOR_MAP, {})),
+        )] = selector.TextSelector(
+            selector.TextSelectorConfig(
+                type=selector.TextSelectorType.TEXT,
+                multiline=True,
+            )
+        )
 
     # §2.3 hierarchy detector — context sensors per LASTENHEFT §7.1.
     # Always shown (drives prio 2-7 dispatching independent of category).
@@ -352,7 +390,7 @@ def _step3_schema(opts: dict[str, Any], maw_sources: list[str], control_map: dic
     return vol.Schema(fields)
 
 class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 6
+    VERSION = 7
 
     def __init__(self) -> None:
         self._step1: dict[str, Any] = {}
@@ -440,6 +478,9 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_EPG_SENSOR_MAP: _parse_epg_sensor_map(
+                    draft.get(CONF_EPG_SENSOR_MAP)
+                ),
                 CONF_EPG_FULL_LOOKUP_CHANNELS: list(
                     draft.get(CONF_EPG_FULL_LOOKUP_CHANNELS, DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
                 ),
@@ -591,6 +632,9 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
+                CONF_EPG_SENSOR_MAP: _parse_epg_sensor_map(
+                    draft.get(CONF_EPG_SENSOR_MAP)
+                ),
                 CONF_EPG_FULL_LOOKUP_CHANNELS: list(
                     draft.get(CONF_EPG_FULL_LOOKUP_CHANNELS, DEFAULT_EPG_FULL_LOOKUP_CHANNELS)
                 ),

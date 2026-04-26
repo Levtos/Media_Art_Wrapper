@@ -22,12 +22,13 @@ from .const import (
     CONF_ARTWORK_WIDTH,
     CONF_CATEGORY,
     CONF_CREATE_WRAPPER,
+    CONF_EPG_SENSOR,
+    CONF_EPG_SENSOR_MAP,
     CONF_FALLBACK_MODE,
     CONF_MAW_SENSOR_DISCORD_GAME,
     CONF_MAW_SENSOR_STASH_ACTIVE,
     CONF_MAW_SENSOR_TV_INPUT,
     CONF_SOURCE_ENTITY_ID,
-    CONF_EPG_SENSOR,
     COMBINED_NUM_SOURCE_SLOTS,
     DEFAULT_ARTWORK_HEIGHT,
     DEFAULT_ARTWORK_SIZE,
@@ -39,6 +40,7 @@ from .const import (
     FALLBACK_PLACEHOLDER,
     PLATFORMS,
     RATIO_1_1_2000,
+    epg_sensor_for_channel,
 )
 from .providers.epg_base import HaEpgProvider
 from .providers.hierarchy import (
@@ -173,6 +175,9 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
         self.artwork_width = int(artwork_width)
         self.artwork_height = int(artwork_height)
         self.artwork_size = max(self.artwork_width, self.artwork_height)
+        # EPG sensor lookup is done per-call against options now (§5 Teil 2 —
+        # per-channel sensor map with single-sensor fallback). The instance
+        # attribute is kept only for legacy diagnostics / state-change tracking.
         epg = opts.get(CONF_EPG_SENSOR, data.get(CONF_EPG_SENSOR))
         self._epg_sensor = str(epg).strip() if isinstance(epg, str) and epg else None
 
@@ -427,10 +432,23 @@ class CoverCoordinator(DataUpdateCoordinator[CoverData]):
                     return data
 
                 self._epg_channel_icon = None
-                if self.category in {"tv", "auto"} and self._epg_sensor:
-                    try:
-                        epg = await HaEpgProvider().get_current_program(self.hass, self._epg_sensor)
-                    except Exception:
+                if self.category in {"tv", "auto"}:
+                    epg_channel_name = str(state_attrs.get("app_name") or "")
+                    epg_sensor = epg_sensor_for_channel(
+                        self.entry.options, epg_channel_name
+                    )
+                    if epg_sensor:
+                        try:
+                            epg = await HaEpgProvider().get_current_program(
+                                self.hass, epg_sensor
+                            )
+                        except Exception:
+                            epg = None
+                        _LOGGER.debug(
+                            "§5 EPG sensor for channel %r → %s (hit=%s)",
+                            epg_channel_name, epg_sensor, bool(epg),
+                        )
+                    else:
                         epg = None
                     if epg and epg.title:
                         state_attrs["media_title"] = epg.title
@@ -514,6 +532,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
          ``combined_delegate_1..N``; backfilled ``epg_sensor`` default.
     6  – Removed remaining ``delegate_entity`` artefacts; added
          ``channel_icon`` and ``channel_name`` defaults on the wrapper.
+    7  – §5 Teil 2: introduce ``epg_sensor_map`` (channel_name → sensor)
+         for multi-EPG-source setups; legacy single ``epg_sensor`` is
+         retained as a catch-all fallback.
     """
     current_version: int = entry.version
     _LOGGER.debug("Migrating config entry %s from version %s", entry.entry_id, current_version)
@@ -592,6 +613,17 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         current_version = 6
         _LOGGER.info(
             "Migrated config entry %s: v5 → v6 (remove delegate_entity, add channel fields)",
+            entry.entry_id,
+        )
+
+    if current_version < 7:
+        # §5 Teil 2 — introduce per-channel EPG sensor map. The single
+        # CONF_EPG_SENSOR remains as catch-all fallback so existing entries
+        # keep behaving identically until the user adds per-channel mappings.
+        new_options.setdefault("epg_sensor_map", {})
+        current_version = 7
+        _LOGGER.info(
+            "Migrated config entry %s: v6 → v7 (added per-channel epg_sensor_map)",
             entry.entry_id,
         )
 

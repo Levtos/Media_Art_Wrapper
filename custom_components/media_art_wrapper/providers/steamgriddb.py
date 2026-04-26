@@ -113,7 +113,7 @@ class SteamProvider(ArtworkProvider):
         if not title:
             return None
 
-        db_entry = touch_title(title)
+        db_entry = await touch_title(title)
         if db_entry.get("lookup_failed"):
             return None
         override_logo = db_entry.get("logo_override_url")
@@ -125,7 +125,7 @@ class SteamProvider(ArtworkProvider):
 
         appid = await _steam_find_appid(session, title)
         if appid is None:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         for template in _STEAM_IMAGE_TEMPLATES:
@@ -142,7 +142,7 @@ class SteamProvider(ArtworkProvider):
                 continue
 
             if image:
-                update_title(title, cover_url=url, lookup_failed=False)
+                await update_title(title, cover_url=url, lookup_failed=False)
                 return ArtworkResult(
                     provider_name="steam",
                     image_url=url,
@@ -151,7 +151,7 @@ class SteamProvider(ArtworkProvider):
                     content_type=ct,
                 )
 
-        update_title(title, lookup_failed=True)
+        await update_title(title, lookup_failed=True)
         return None
 
 
@@ -218,7 +218,7 @@ class SteamGridDBProvider(ArtworkProvider):
 
         game_id = await self._find_game_id(session, title)
         if game_id is None:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         logos_url = SGDB_LOGOS_URL.format(game_id=game_id)
@@ -245,12 +245,12 @@ class SteamGridDBProvider(ArtworkProvider):
 
         first = logos[0]
         if not isinstance(first, dict):
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         url = first.get("url")
         if not isinstance(url, str) or not url:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         try:
@@ -263,10 +263,10 @@ class SteamGridDBProvider(ArtworkProvider):
             return None
 
         if not image:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
-        update_title(title, cover_url=url, lookup_failed=False)
+        await update_title(title, cover_url=url, lookup_failed=False)
         return ArtworkResult(
             provider_name="steamgriddb_logo",
             image_url=url,
@@ -280,7 +280,7 @@ class SteamGridDBProvider(ArtworkProvider):
         if not title:
             return None
 
-        db_entry = touch_title(title)
+        db_entry = await touch_title(title)
         if db_entry.get("lookup_failed"):
             return None
         override_logo = db_entry.get("logo_override_url")
@@ -331,17 +331,17 @@ class SteamGridDBProvider(ArtworkProvider):
 
         grids = grids_data.get("data") or []
         if not isinstance(grids, list) or not grids:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         first = grids[0]
         if not isinstance(first, dict):
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         url = first.get("url")
         if not isinstance(url, str) or not url:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
         try:
@@ -354,10 +354,10 @@ class SteamGridDBProvider(ArtworkProvider):
             return None
 
         if not image:
-            update_title(title, lookup_failed=True)
+            await update_title(title, lookup_failed=True)
             return None
 
-        update_title(title, cover_url=url, lookup_failed=False)
+        await update_title(title, cover_url=url, lookup_failed=False)
         return ArtworkResult(
             provider_name="steamgriddb",
             image_url=url,

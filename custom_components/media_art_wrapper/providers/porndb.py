@@ -1,4 +1,10 @@
-"""PornDB provider (REST fallback)."""
+"""PornDB provider (REST, §6.4 prio 3).
+
+The public ``/scenes/search`` endpoint accepts an optional Bearer token.
+With a key, results are richer and rate-limits relax; without a key
+the same query path is tried but may return nothing — graceful None
+either way.
+"""
 from __future__ import annotations
 
 import logging
@@ -15,13 +21,29 @@ _JSON_KW = {"content_type": None}
 class PornDBProvider(ArtworkProvider):
     categories = frozenset({"adult"})
 
+    def __init__(self, api_key: str = "") -> None:
+        self._api_key = (api_key or "").strip()
+
+    def _headers(self) -> dict[str, str]:
+        if not self._api_key:
+            # TODO: most newer PornDB deployments require a Bearer token;
+            # without one the public endpoint may return 401/empty. Caller
+            # treats that as a graceful miss and falls through to AEBN.
+            return {}
+        return {"Authorization": f"Bearer {self._api_key}"}
+
     async def fetch(self, session, query: ArtworkQuery) -> ArtworkResult | None:
         title = (query.title or "").strip()
         if not title:
             return None
 
         try:
-            async with session.get(PORNDB_SEARCH_URL, params={"q": title, "limit": 1}, timeout=10) as resp:
+            async with session.get(
+                PORNDB_SEARCH_URL,
+                params={"q": title, "limit": 1},
+                headers=self._headers(),
+                timeout=10,
+            ) as resp:
                 if resp.status != 200:
                     return None
                 payload: dict[str, Any] = await resp.json(**_JSON_KW)

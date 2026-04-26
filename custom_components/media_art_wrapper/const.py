@@ -146,6 +146,13 @@ CONF_STASH_URL = "stash_url"
 CONF_STASH_API_KEY = "stash_api_key"
 CONF_STASH_HOST_REWRITE = "stash_host_rewrite"
 CONF_STASHDB_API_KEY = "stashdb_api_key"
+# §3.2 / §6.4 — adult-content API keys for the §6.4 prio 3/4 providers.
+# Both endpoints are reachable without a key for basic search but keys
+# are required for higher-quality / non-rate-limited responses; providers
+# attach Bearer auth when set, otherwise hit the public endpoint and may
+# still degrade to None.
+CONF_PORNDB_API_KEY = "porndb_api_key"
+CONF_AEBN_API_KEY = "aebn_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
 # §5 Teil 2 — per-channel EPG sensor map. dict[channel_name, sensor_entity_id],

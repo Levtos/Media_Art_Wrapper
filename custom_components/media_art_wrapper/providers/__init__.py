@@ -22,9 +22,11 @@ from ..const import (
     CATEGORY_PROVIDERS,
     CATEGORY_STREAMING,
     CATEGORY_TV,
+    CONF_AEBN_API_KEY,
     CONF_FANART_API_KEY,
     CONF_IGDB_CLIENT_ID,
     CONF_IGDB_CLIENT_SECRET,
+    CONF_PORNDB_API_KEY,
     CONF_STASH_API_KEY,
     CONF_STASH_HOST_REWRITE,
     CONF_STASH_URL,
@@ -86,8 +88,8 @@ def build_provider_instances(options: dict[str, Any]) -> dict[str, ArtworkProvid
             options.get(CONF_STASH_HOST_REWRITE, ""),
         ),
         "stashdb": StashDBProvider(options.get(CONF_STASHDB_API_KEY, "")),
-        "porndb": PornDBProvider(),
-        "aebn": AEBNProvider(),
+        "porndb": PornDBProvider(options.get(CONF_PORNDB_API_KEY, "")),
+        "aebn": AEBNProvider(options.get(CONF_AEBN_API_KEY, "")),
     }
 
 

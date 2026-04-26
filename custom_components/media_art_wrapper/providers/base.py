@@ -25,6 +25,7 @@ class ArtworkQuery:
     subtitle_hint: str = ""
     channel_icon: str = ""      # og:image or EPG-supplied channel logo URL
     channel_name: str = ""      # raw channel name from app_name / EPG
+    epg_full_lookup_channels: set[str] = field(default_factory=set)
 
 
 @dataclass(slots=True)

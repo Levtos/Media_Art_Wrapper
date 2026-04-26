@@ -142,8 +142,13 @@ CONF_IGDB_CLIENT_ID = "igdb_client_id"
 CONF_IGDB_CLIENT_SECRET = "igdb_client_secret"
 CONF_STEAMGRIDDB_API_KEY = "steamgriddb_api_key"
 CONF_FANART_API_KEY = "fanart_api_key"
+CONF_STASH_URL = "stash_url"
+CONF_STASH_API_KEY = "stash_api_key"
+CONF_STASH_HOST_REWRITE = "stash_host_rewrite"
+CONF_STASHDB_API_KEY = "stashdb_api_key"
 CONF_XMLTV_URL = "xmltv_url"  # Reserved for EPG v3.2 — not yet implemented; kept in storage only
 CONF_EPG_SENSOR = "epg_sensor"
+CONF_EPG_FULL_LOOKUP_CHANNELS = "epg_full_lookup_channels"
 
 # ---------------------------------------------------------------------------
 # §2.3 Artwork-hierarchy detector sensors (per §7.1)
@@ -215,10 +220,9 @@ DEFAULT_CMP_SENSOR_HOMEPODS_ACTIVE = "binary_sensor.homepods_active_atomic"
 # ---------------------------------------------------------------------------
 # Channels in this set trigger full API lookups (TVMaze + TMDb episode search).
 # All other channels (private/commercial) receive channel_icon directly.
-EPG_FULL_LOOKUP_CHANNELS: frozenset[str] = frozenset({
+DEFAULT_EPG_FULL_LOOKUP_CHANNELS: tuple[str, ...] = (
     # ARD Familie
-    "Das Erste", "ARD", "ARD HD", "Das Erste HD",
-    "tagesschau24", "ONE", "ARD alpha",
+    "Das Erste", "ARD", "ARD HD", "Das Erste HD", "tagesschau24", "ONE", "ARD alpha",
     # ZDF Familie
     "ZDF", "ZDF HD", "ZDFinfo", "ZDFneo", "ZDF Krimi", "3sat",
     # WDR
@@ -227,4 +231,6 @@ EPG_FULL_LOOKUP_CHANNELS: frozenset[str] = frozenset({
     "arte", "arte HD",
     "NDR", "MDR", "SWR", "BR", "HR", "RBB",
     "Phoenix", "KiKA",
-})
+)
+
+EPG_FULL_LOOKUP_CHANNELS: frozenset[str] = frozenset(DEFAULT_EPG_FULL_LOOKUP_CHANNELS)

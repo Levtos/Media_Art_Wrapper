@@ -1,0 +1,10 @@
+debug_connection:
+  name: Debug connection
+  description: Test Stash connectivity and write detailed result logs.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Optional config entry ID. If omitted, all stash_player entries are tested.
+      example: "abc123def456"
+      selector:
+        text:

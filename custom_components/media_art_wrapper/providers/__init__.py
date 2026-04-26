@@ -25,14 +25,21 @@ from ..const import (
     CONF_FANART_API_KEY,
     CONF_IGDB_CLIENT_ID,
     CONF_IGDB_CLIENT_SECRET,
+    CONF_STASH_API_KEY,
+    CONF_STASH_HOST_REWRITE,
+    CONF_STASH_URL,
+    CONF_STASHDB_API_KEY,
     CONF_STEAMGRIDDB_API_KEY,
     CONF_TMDB_API_KEY,
-    EPG_FULL_LOOKUP_CHANNELS,
 )
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
+from .aebn import AEBNProvider
 from .fanart import FanartTvProvider
 from .igdb import IGDBProvider
 from .itunes import ITunesProvider
+from .porndb import PornDBProvider
+from .stash import StashProvider
+from .stashdb import StashDBProvider
 from .musicbrainz import MusicBrainzProvider
 from .steamgriddb import SteamGridDBProvider, SteamProvider
 from .tmdb import TMDbProvider
@@ -58,9 +65,7 @@ def build_provider_instances(options: dict[str, Any]) -> dict[str, ArtworkProvid
     credentials are missing are still returned — callers must filter on
     ``is_available()``.
 
-    TODO Schritt 7 (§3.2 / §6): wire StashClient, StashDBProvider,
-    PornDBProvider and AEBNProvider — keys "stash", "stashdb", "porndb",
-    "aebn" are already routed via CATEGORY_PROVIDERS[CATEGORY_ADULT].
+    Includes §6.4 adult provider chain: stash -> stashdb -> porndb -> aebn.
     """
     return {
         "itunes": ITunesProvider(),
@@ -74,6 +79,14 @@ def build_provider_instances(options: dict[str, Any]) -> dict[str, ArtworkProvid
         "steam": SteamProvider(),
         "tvmaze": TVMazeProvider(),
         "fanart": FanartTvProvider(options.get(CONF_FANART_API_KEY, "")),
+        "stash": StashProvider(
+            options.get(CONF_STASH_URL, ""),
+            options.get(CONF_STASH_API_KEY, ""),
+            options.get(CONF_STASH_HOST_REWRITE, ""),
+        ),
+        "stashdb": StashDBProvider(options.get(CONF_STASHDB_API_KEY, "")),
+        "porndb": PornDBProvider(),
+        "aebn": AEBNProvider(),
     }
 
 
@@ -119,7 +132,8 @@ async def resolve_cover(
     # TV: private/commercial channels → return channel_icon directly, skip API lookups
     if query.category == "tv" and query.channel_name:
         raw_channel = (query.channel_name or "").strip()
-        if raw_channel and raw_channel not in EPG_FULL_LOOKUP_CHANNELS:
+        full_lookup_channels = query.epg_full_lookup_channels or set()
+        if raw_channel and raw_channel not in full_lookup_channels:
             if query.channel_icon:
                 _LOGGER.debug(
                     "Private channel %r — returning channel_icon directly (no API call)",

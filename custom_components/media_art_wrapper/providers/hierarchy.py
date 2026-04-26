@@ -14,7 +14,6 @@ from typing import Any
 
 from ..const import (
     CATEGORY_ADULT,
-    EPG_FULL_LOOKUP_CHANNELS,
     SCENARIO_ATV_NO_TITLE,
     SCENARIO_ATV_TITLE,
     SCENARIO_FALLBACK,
@@ -47,6 +46,7 @@ def detect_scenario(
     discord_game_state: str | None,
     stash_active_state: str | None,
     channel_name: str = "",
+    epg_full_lookup_channels: set[str] | None = None,
 ) -> ScenarioContext:
     """Classify which §2.3 priority applies for the current context.
 
@@ -79,7 +79,8 @@ def detect_scenario(
 
     # Prio 6 / 7 — TV / Sat
     if tv_input == "live_tv":
-        in_list = bool(channel_name and channel_name.strip() in EPG_FULL_LOOKUP_CHANNELS)
+        configured_channels = epg_full_lookup_channels or set()
+        in_list = bool(channel_name and channel_name.strip() in configured_channels)
         return ScenarioContext(
             SCENARIO_TV_IN_LIST if in_list else SCENARIO_TV_OUT_OF_LIST,
             channel_in_list=in_list,

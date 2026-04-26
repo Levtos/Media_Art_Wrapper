@@ -127,7 +127,13 @@ def _strip_channel(name: str) -> str:
     return _RE_CHANNEL_SUFFIX.sub("", name).strip()
 
 
-def build_query(state_attrs: dict[str, Any], category: str, artwork_width: int = 600, artwork_height: int = 600) -> ArtworkQuery:
+def build_query(
+    state_attrs: dict[str, Any],
+    category: str,
+    artwork_width: int = 600,
+    artwork_height: int = 600,
+    epg_full_lookup_channels: set[str] | None = None,
+) -> ArtworkQuery:
     raw_title = _raw(state_attrs.get("media_title"))
     clean_title = _clean(state_attrs.get("media_title"))
     artist = _clean(state_attrs.get("media_artist"))
@@ -184,4 +190,5 @@ def build_query(state_attrs: dict[str, Any], category: str, artwork_width: int =
         subtitle_hint=subtitle_hint,
         channel_name=app_name or "",
         channel_icon=str(state_attrs.get("channel_icon") or ""),
+        epg_full_lookup_channels=epg_full_lookup_channels or set(),
     )

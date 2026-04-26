@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from .base import ArtworkProvider, ArtworkQuery, ArtworkResult
+from .game_db import get_title, touch_title, update_title
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,6 +67,13 @@ class IGDBProvider(ArtworkProvider):
         if not title:
             return None
 
+        db_entry = touch_title(title)
+        if db_entry.get("lookup_failed"):
+            return None
+        cached_cover = db_entry.get("cover_url")
+        if isinstance(cached_cover, str) and cached_cover:
+            return ArtworkResult(provider_name="igdb", image_url=cached_cover, confidence=0.95)
+
         token = await _get_access_token(session, self._client_id, self._client_secret)
         if not token:
             return None
@@ -88,9 +96,11 @@ class IGDBProvider(ArtworkProvider):
                 games: list[dict[str, Any]] = await resp.json(**_JSON_KW)
         except Exception as err:
             _LOGGER.debug("IGDB game search failed for %r: %s", title, err)
+            update_title(title, lookup_failed=True)
             return None
 
         if not isinstance(games, list) or not games:
+            update_title(title, lookup_failed=True)
             return None
 
         # Pick the first game that has a cover ID
@@ -104,6 +114,7 @@ class IGDBProvider(ArtworkProvider):
                 break
 
         if cover_id is None:
+            update_title(title, lookup_failed=True)
             return None
 
         # Fetch cover URL
@@ -119,13 +130,16 @@ class IGDBProvider(ArtworkProvider):
                 covers: list[dict[str, Any]] = await resp.json(**_JSON_KW)
         except Exception as err:
             _LOGGER.debug("IGDB cover fetch failed: %s", err)
+            update_title(title, lookup_failed=True)
             return None
 
         if not isinstance(covers, list) or not covers:
+            update_title(title, lookup_failed=True)
             return None
 
         image_id = covers[0].get("image_id") if isinstance(covers[0], dict) else None
         if not isinstance(image_id, str):
+            update_title(title, lookup_failed=True)
             return None
 
         # Request highest available quality for preset >=2K
@@ -139,11 +153,14 @@ class IGDBProvider(ArtworkProvider):
                 image = await resp.read()
         except Exception as err:
             _LOGGER.debug("IGDB image download failed: %s", err)
+            update_title(title, lookup_failed=True)
             return None
 
         if not image:
+            update_title(title, lookup_failed=True)
             return None
 
+        update_title(title, igdb_id=cover_id, cover_url=url, lookup_failed=False)
         return ArtworkResult(
             provider_name="igdb",
             image_url=url,

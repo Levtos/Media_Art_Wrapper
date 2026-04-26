@@ -52,6 +52,8 @@ from .const import (
     CONF_STASH_HOST_REWRITE,
     CONF_STASH_URL,
     CONF_STASHDB_API_KEY,
+    CONF_PORNDB_API_KEY,
+    CONF_AEBN_API_KEY,
     CONF_TMDB_API_KEY,
     CONF_EPG_FULL_LOOKUP_CHANNELS,
     CONF_EPG_SENSOR,
@@ -331,6 +333,12 @@ def _step2_schema(category: str, opts: dict[str, Any]) -> vol.Schema:
     fields[vol.Optional(CONF_STASHDB_API_KEY, default=opts.get(CONF_STASHDB_API_KEY, ""))] = selector.TextSelector(
         selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
     )
+    fields[vol.Optional(CONF_PORNDB_API_KEY, default=opts.get(CONF_PORNDB_API_KEY, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+    )
+    fields[vol.Optional(CONF_AEBN_API_KEY, default=opts.get(CONF_AEBN_API_KEY, ""))] = selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+    )
     fields[vol.Optional(CONF_STASH_HOST_REWRITE, default=opts.get(CONF_STASH_HOST_REWRITE, ""))] = selector.TextSelector(
         selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
     )
@@ -493,6 +501,8 @@ class MediaCoverArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_IGDB_CLIENT_SECRET: draft.get(CONF_IGDB_CLIENT_SECRET, ""),
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
+                CONF_PORNDB_API_KEY: draft.get(CONF_PORNDB_API_KEY, ""),
+                CONF_AEBN_API_KEY: draft.get(CONF_AEBN_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
                 CONF_EPG_SENSOR_MAP: _parse_epg_sensor_map(
                     draft.get(CONF_EPG_SENSOR_MAP)
@@ -647,6 +657,8 @@ class MediaCoverArtOptionsFlow(config_entries.OptionsFlowWithConfigEntry):
                 CONF_IGDB_CLIENT_SECRET: draft.get(CONF_IGDB_CLIENT_SECRET, ""),
                 CONF_STEAMGRIDDB_API_KEY: draft.get(CONF_STEAMGRIDDB_API_KEY, ""),
                 CONF_FANART_API_KEY: draft.get(CONF_FANART_API_KEY, ""),
+                CONF_PORNDB_API_KEY: draft.get(CONF_PORNDB_API_KEY, ""),
+                CONF_AEBN_API_KEY: draft.get(CONF_AEBN_API_KEY, ""),
                 CONF_EPG_SENSOR: draft.get(CONF_EPG_SENSOR),
                 CONF_EPG_SENSOR_MAP: _parse_epg_sensor_map(
                     draft.get(CONF_EPG_SENSOR_MAP)

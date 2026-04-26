@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Stash",
+        "description": "Enter your Stash server URL and optional API key. Examples: https://stash.example.com, http://192.168.1.100:9999, or 192.168.1.100:9999 (http:// is added automatically).",
+        "data": {
+          "url": "Stash Server URL",
+          "api_key": "API Key (optional)"
+        }
+      },
+      "options": {
+        "title": "Stash Player Options",
+        "description": "Configure polling and content mode.",
+        "data": {
+          "player_name": "Player name",
+          "poll_interval": "Poll interval (seconds)",
+          "use_webhook": "Use Stash webhooks",
+          "nsfw_mode": "Content Mode"
+        }
+      },
+      "webhook": {
+        "title": "Webhook Options",
+        "description": "Stash sends events directly to HA. More responsive than polling but requires network access from Stash to HA.",
+        "data": {
+          "webhook_port": "Webhook port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Stash. Check the URL and API key.",
+      "invalid_auth": "Invalid authentication"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Stash Player Options",
+        "data": {
+          "player_name": "Player name",
+          "poll_interval": "Poll interval (seconds)",
+          "use_webhook": "Use Stash webhooks",
+          "nsfw_mode": "Content Mode"
+        }
+      },
+      "webhook": {
+        "title": "Webhook Options",
+        "description": "Stash sends events directly to HA. More responsive than polling but requires network access from Stash to HA.",
+        "data": {
+          "webhook_port": "Webhook port"
+        }
+      }
+    }
+  },
+  "selector": {
+    "nsfw_mode": {
+      "options": {
+        "blur": "Blurred",
+        "hidden": "Hidden (placeholder)",
+        "full": "Full quality"
+      }
+    }
+  }
+}

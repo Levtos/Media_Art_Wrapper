@@ -1,0 +1,12 @@
+{
+  "domain": "stash_player",
+  "name": "Stash Player",
+  "version": "2.0.0",
+  "documentation": "https://github.com/Levtos/stash-ha",
+  "issue_tracker": "https://github.com/Levtos/stash-ha/issues",
+  "dependencies": [],
+  "codeowners": ["@Levtos"],
+  "requirements": [],
+  "iot_class": "local_polling",
+  "config_flow": true
+}
